@@ -38,6 +38,9 @@ jobs:
           VITE_ACCESS_TOKEN_2: ${{ secrets.VITE_ACCESS_TOKEN_2 }}
           VITE_ACCESS_TOKEN_3: ${{ secrets.VITE_ACCESS_TOKEN_3 }}
           
+          # Access Control Salt
+          VITE_ACCESS_SALT: ${{ secrets.VITE_ACCESS_SALT }}
+
           # Access Control - Password-based
           VITE_ACCESS_CODE_1: ${{ secrets.VITE_ACCESS_CODE_1 }}
           VITE_ACCESS_CODE_2: ${{ secrets.VITE_ACCESS_CODE_2 }}
