@@ -3,47 +3,71 @@ import { Lock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { sha256 } from "@/lib/utils";
 
 interface UrlAccessControlProps {
   onAccessGranted: () => void;
   isAuthenticated: boolean;
 }
 
+const ACCESS_KEY = "worship-scheduler-auth-hash"; // Key for the hashed token
+
 const UrlAccessControl = ({ onAccessGranted, isAuthenticated }: UrlAccessControlProps) => {
   const [error, setError] = useState("");
 
-  // Valid access tokens - these must be set in environment variables
   const VALID_ACCESS_TOKENS = [
     import.meta.env.VITE_ACCESS_TOKEN_1,
     import.meta.env.VITE_ACCESS_TOKEN_2,
     import.meta.env.VITE_ACCESS_TOKEN_3
-  ].filter(Boolean); // Remove any undefined values
+  ].filter(Boolean);
 
-  // Check URL parameters for access token
+  const ACCESS_SALT = import.meta.env.VITE_ACCESS_SALT || "default-dev-salt"; // Fallback for dev, but MUST be set in production!
+
+  // Check URL parameters for access token and hash it for storage
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const accessToken = urlParams.get('access');
     
-    
-    if (accessToken && VALID_ACCESS_TOKENS.includes(accessToken)) {
-      localStorage.setItem('worship-scheduler-auth', 'true');
-      onAccessGranted();
-    } else if (accessToken) {
-      setError('Invalid access token. Please check with your team leader.');
-    }
-  }, [onAccessGranted, VALID_ACCESS_TOKENS]);
+    const authenticate = async (token: string) => {
+      const hashedToken = await sha256(token, ACCESS_SALT);
+      const validHashes = await Promise.all(VALID_ACCESS_TOKENS.map(t => sha256(t, ACCESS_SALT)));
 
-  // Check if already authenticated
-  useEffect(() => {
-    const storedAuth = localStorage.getItem('worship-scheduler-auth');
-    if (storedAuth === 'true') {
-      onAccessGranted();
+      if (validHashes.includes(hashedToken)) {
+        console.log('Access granted!');
+        localStorage.setItem(ACCESS_KEY, hashedToken);
+        onAccessGranted();
+      } else {
+        console.log('Invalid access token');
+        setError('Invalid access token. Please check with your team leader.');
+      }
+    };
+
+    if (accessToken) {
+      authenticate(accessToken);
     }
-  }, [onAccessGranted]);
+  }, [onAccessGranted, VALID_ACCESS_TOKENS, ACCESS_SALT]);
+
+  // Check if already authenticated via hashed token in localStorage
+  useEffect(() => {
+    const storedAuthHash = localStorage.getItem(ACCESS_KEY);
+    
+    const checkStoredHash = async () => {
+      if (storedAuthHash) {
+        const validHashes = await Promise.all(VALID_ACCESS_TOKENS.map(t => sha256(t, ACCESS_SALT)));
+        if (validHashes.includes(storedAuthHash)) {
+          onAccessGranted();
+        } else {
+          // Stored hash is invalid or doesn't match current valid tokens
+          localStorage.removeItem(ACCESS_KEY);
+        }
+      }
+    };
+
+    checkStoredHash();
+  }, [onAccessGranted, VALID_ACCESS_TOKENS, ACCESS_SALT]);
 
   const handleLogout = () => {
-    localStorage.removeItem('worship-scheduler-auth');
-    // Remove access parameter from URL
+    localStorage.removeItem(ACCESS_KEY);
     const url = new URL(window.location.href);
     url.searchParams.delete('access');
     window.history.replaceState({}, '', url.toString());
