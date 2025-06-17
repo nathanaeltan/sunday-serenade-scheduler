@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Calendar, Users, Edit2, Save, X, ArrowRightLeft, Plus, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -149,29 +148,39 @@ const Index = () => {
   };
 
   const handleSwapSelect = (teamId: number, date: string) => {
+    console.log('Swap select clicked:', { teamId, date, selectedSwapFrom, requestedBy });
+    
     if (selectedSwapFrom && selectedSwapFrom.teamId === teamId && selectedSwapFrom.date === date) {
       // Deselect if clicking the same date
+      console.log('Deselecting same date');
       setSelectedSwapFrom(null);
     } else if (selectedSwapFrom) {
-      // Complete the swap if a different date is selected
-      if (requestedBy.trim()) {
-        const newSwap: SwapRequest = {
-          id: Date.now(),
-          fromTeamId: selectedSwapFrom.teamId,
-          toTeamId: teamId,
-          fromDate: selectedSwapFrom.date,
-          toDate: date,
-          reason: swapReason,
-          status: 'pending',
-          requestedBy: requestedBy
-        };
-        setSwapRequests([...swapRequests, newSwap]);
-        setSelectedSwapFrom(null);
-        setSwapReason("");
-        setRequestedBy("");
+      // Complete the swap if a different date is selected and name is provided
+      console.log('Attempting to complete swap');
+      if (!requestedBy.trim()) {
+        alert('Please enter your name before completing the swap request.');
+        return;
       }
+      
+      const newSwap: SwapRequest = {
+        id: Date.now(),
+        fromTeamId: selectedSwapFrom.teamId,
+        toTeamId: teamId,
+        fromDate: selectedSwapFrom.date,
+        toDate: date,
+        reason: swapReason,
+        status: 'pending',
+        requestedBy: requestedBy
+      };
+      
+      console.log('Creating new swap:', newSwap);
+      setSwapRequests([...swapRequests, newSwap]);
+      setSelectedSwapFrom(null);
+      setSwapReason("");
+      setRequestedBy("");
     } else {
       // Select the first date for swapping
+      console.log('Selecting first date for swap');
       setSelectedSwapFrom({ teamId, date });
     }
   };
@@ -212,7 +221,8 @@ const Index = () => {
 
   const canSwapWith = (teamId: number, date: string) => {
     if (!selectedSwapFrom) return false;
-    return selectedSwapFrom.teamId !== teamId; // Can swap with different teams only
+    // Can swap with different teams only, and not the same date
+    return selectedSwapFrom.teamId !== teamId && selectedSwapFrom.date !== date;
   };
 
   return (
@@ -328,7 +338,7 @@ const Index = () => {
                       <strong>{formatDate(selectedSwapFrom.date)}</strong>
                     </p>
                     <p className="text-sm text-blue-700">
-                      Click on another Sunday to complete the swap request.
+                      Click on another Sunday to complete the swap request. Make sure to enter your name below first!
                     </p>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -340,6 +350,7 @@ const Index = () => {
                           onChange={(e) => setRequestedBy(e.target.value)}
                           placeholder="Enter your name"
                           required
+                          className="bg-white"
                         />
                       </div>
                       <div>
@@ -349,13 +360,18 @@ const Index = () => {
                           value={swapReason}
                           onChange={(e) => setSwapReason(e.target.value)}
                           placeholder="Brief reason for swap"
+                          className="bg-white"
                         />
                       </div>
                     </div>
                     
                     <Button 
                       variant="outline" 
-                      onClick={() => setSelectedSwapFrom(null)}
+                      onClick={() => {
+                        setSelectedSwapFrom(null);
+                        setSwapReason("");
+                        setRequestedBy("");
+                      }}
                       className="mt-2"
                     >
                       Cancel Swap
@@ -373,7 +389,7 @@ const Index = () => {
                   Sunday Schedule
                   {selectedSwapFrom && (
                     <span className="text-sm font-normal text-blue-600 ml-2">
-                      (Click a Sunday to swap with)
+                      (Click a different Sunday to swap with)
                     </span>
                   )}
                 </CardTitle>
