@@ -24,15 +24,11 @@ const UrlAccessControl = ({ onAccessGranted, isAuthenticated }: UrlAccessControl
     const urlParams = new URLSearchParams(window.location.search);
     const accessToken = urlParams.get('access');
     
-    console.log('Checking access token:', accessToken);
-    console.log('Valid tokens:', VALID_ACCESS_TOKENS);
     
     if (accessToken && VALID_ACCESS_TOKENS.includes(accessToken)) {
-      console.log('Access granted!');
       localStorage.setItem('worship-scheduler-auth', 'true');
       onAccessGranted();
     } else if (accessToken) {
-      console.log('Invalid access token');
       setError('Invalid access token. Please check with your team leader.');
     }
   }, [onAccessGranted, VALID_ACCESS_TOKENS]);
