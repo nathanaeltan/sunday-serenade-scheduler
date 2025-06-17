@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Team {
   id: number;
@@ -17,14 +16,15 @@ interface Team {
 
 interface WeekData {
   date: string;
-  teams: number[];
+  teamId: number;
 }
 
 interface SwapRequest {
   id: number;
-  fromTeam: string;
-  toTeam: string;
-  date: string;
+  fromTeamId: number;
+  toTeamId: number;
+  fromDate: string;
+  toDate: string;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   requestedBy: string;
@@ -42,14 +42,9 @@ const Index = () => {
   const [editingTeam, setEditingTeam] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ leader: "", members: "" });
   const [activeTab, setActiveTab] = useState<'schedule' | 'swaps'>('schedule');
-  const [showSwapForm, setShowSwapForm] = useState(false);
-  const [swapForm, setSwapForm] = useState({
-    fromTeam: "",
-    toTeam: "",
-    date: "",
-    reason: "",
-    requestedBy: ""
-  });
+  const [selectedSwapFrom, setSelectedSwapFrom] = useState<{teamId: number, date: string} | null>(null);
+  const [swapReason, setSwapReason] = useState("");
+  const [requestedBy, setRequestedBy] = useState("");
 
   // Load data from localStorage on component mount
   useEffect(() => {
@@ -72,7 +67,7 @@ const Index = () => {
     localStorage.setItem('swap-requests', JSON.stringify(swapRequests));
   }, [swapRequests]);
 
-  // Generate next 8 Sundays
+  // Generate next 12 Sundays with dynamic rotation
   const generateSundays = (): WeekData[] => {
     const sundays: WeekData[] = [];
     const today = new Date();
@@ -82,41 +77,36 @@ const Index = () => {
     const daysUntilSunday = 7 - today.getDay();
     nextSunday.setDate(today.getDate() + (daysUntilSunday === 7 ? 0 : daysUntilSunday));
     
-    for (let i = 0; i < 8; i++) {
+    const numTeams = teams.length;
+    const weeksPerCycle = numTeams * 2; // Each team gets 2 weeks on, then rotates
+    
+    for (let i = 0; i < 12; i++) {
       const sunday = new Date(nextSunday);
       sunday.setDate(nextSunday.getDate() + (i * 7));
+      const dateString = sunday.toISOString().split('T')[0];
       
       // Check for approved swaps for this date
-      const dateString = sunday.toISOString().split('T')[0];
       const approvedSwap = swapRequests.find(swap => 
-        swap.date === dateString && swap.status === 'approved'
+        (swap.fromDate === dateString || swap.toDate === dateString) && swap.status === 'approved'
       );
       
-      let scheduledTeams;
+      let scheduledTeamId;
       if (approvedSwap) {
         // Apply the swap
-        const cycle = Math.floor(i / 2) % 2;
-        const originalTeams = cycle === 0 ? [1, 2] : [3, 4];
-        const fromTeam = teams.find(t => t.leader === approvedSwap.fromTeam);
-        const toTeam = teams.find(t => t.leader === approvedSwap.toTeam);
-        
-        if (fromTeam && toTeam) {
-          scheduledTeams = originalTeams.map(id => 
-            id === fromTeam.id ? toTeam.id : 
-            id === toTeam.id ? fromTeam.id : id
-          );
+        if (approvedSwap.fromDate === dateString) {
+          scheduledTeamId = approvedSwap.toTeamId;
         } else {
-          scheduledTeams = originalTeams;
+          scheduledTeamId = approvedSwap.fromTeamId;
         }
       } else {
-        // Normal rotation: 2 weeks on, 2 weeks off
-        const cycle = Math.floor(i / 2) % 2;
-        scheduledTeams = cycle === 0 ? [1, 2] : [3, 4];
+        // Normal rotation: each team gets 2 consecutive weeks
+        const teamIndex = Math.floor(i / 2) % numTeams;
+        scheduledTeamId = teams[teamIndex]?.id || 1;
       }
       
       sundays.push({
         date: dateString,
-        teams: scheduledTeams
+        teamId: scheduledTeamId
       });
     }
     
@@ -158,23 +148,31 @@ const Index = () => {
     setEditForm({ leader: "", members: "" });
   };
 
-  const handleSwapSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (swapForm.fromTeam && swapForm.toTeam && swapForm.date && swapForm.requestedBy) {
-      const newSwap: SwapRequest = {
-        id: Date.now(),
-        ...swapForm,
-        status: 'pending'
-      };
-      setSwapRequests([...swapRequests, newSwap]);
-      setSwapForm({
-        fromTeam: "",
-        toTeam: "",
-        date: "",
-        reason: "",
-        requestedBy: ""
-      });
-      setShowSwapForm(false);
+  const handleSwapSelect = (teamId: number, date: string) => {
+    if (selectedSwapFrom && selectedSwapFrom.teamId === teamId && selectedSwapFrom.date === date) {
+      // Deselect if clicking the same date
+      setSelectedSwapFrom(null);
+    } else if (selectedSwapFrom) {
+      // Complete the swap if a different date is selected
+      if (requestedBy.trim()) {
+        const newSwap: SwapRequest = {
+          id: Date.now(),
+          fromTeamId: selectedSwapFrom.teamId,
+          toTeamId: teamId,
+          fromDate: selectedSwapFrom.date,
+          toDate: date,
+          reason: swapReason,
+          status: 'pending',
+          requestedBy: requestedBy
+        };
+        setSwapRequests([...swapRequests, newSwap]);
+        setSelectedSwapFrom(null);
+        setSwapReason("");
+        setRequestedBy("");
+      }
+    } else {
+      // Select the first date for swapping
+      setSelectedSwapFrom({ teamId, date });
     }
   };
 
@@ -206,12 +204,23 @@ const Index = () => {
     }
   };
 
+  const getTeamById = (id: number) => teams.find(team => team.id === id);
+
+  const isDateInSwapSelection = (teamId: number, date: string) => {
+    return selectedSwapFrom?.teamId === teamId && selectedSwapFrom?.date === date;
+  };
+
+  const canSwapWith = (teamId: number, date: string) => {
+    if (!selectedSwapFrom) return false;
+    return selectedSwapFrom.teamId !== teamId; // Can swap with different teams only
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Worship Team Schedule</h1>
-          <p className="text-lg text-gray-600">Sunday service rotation - 2 weeks on, 2 weeks off</p>
+          <p className="text-lg text-gray-600">Sunday service rotation - Each team serves 2 weeks, then rotates</p>
         </div>
 
         {/* Navigation Tabs */}
@@ -303,26 +312,93 @@ const Index = () => {
               </CardContent>
             </Card>
 
+            {/* Visual Swap Interface */}
+            {selectedSwapFrom && (
+              <Card className="mb-8 border-blue-300 bg-blue-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-blue-900">
+                    <ArrowRightLeft className="w-5 h-5" />
+                    Select Sunday to Swap With
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <p className="text-blue-800">
+                      Selected: <strong>{getTeamById(selectedSwapFrom.teamId)?.leader}</strong> on{' '}
+                      <strong>{formatDate(selectedSwapFrom.date)}</strong>
+                    </p>
+                    <p className="text-sm text-blue-700">
+                      Click on another Sunday to complete the swap request.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="requestedBy">Your Name *</Label>
+                        <Input
+                          id="requestedBy"
+                          value={requestedBy}
+                          onChange={(e) => setRequestedBy(e.target.value)}
+                          placeholder="Enter your name"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="reason">Reason (Optional)</Label>
+                        <Input
+                          id="reason"
+                          value={swapReason}
+                          onChange={(e) => setSwapReason(e.target.value)}
+                          placeholder="Brief reason for swap"
+                        />
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setSelectedSwapFrom(null)}
+                      className="mt-2"
+                    >
+                      Cancel Swap
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Calendar Section */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="w-5 h-5" />
                   Sunday Schedule
+                  {selectedSwapFrom && (
+                    <span className="text-sm font-normal text-blue-600 ml-2">
+                      (Click a Sunday to swap with)
+                    </span>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {sundays.map((sunday, index) => {
-                    const scheduledTeams = teams.filter(team => sunday.teams.includes(team.id));
+                    const scheduledTeam = getTeamById(sunday.teamId);
                     const isCurrentWeek = index < 2;
+                    const isSelected = isDateInSwapSelection(sunday.teamId, sunday.date);
+                    const canSwap = canSwapWith(sunday.teamId, sunday.date);
                     
                     return (
                       <div 
                         key={sunday.date}
-                        className={`p-4 border rounded-lg transition-all ${
-                          isCurrentWeek ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'
+                        className={`p-4 border rounded-lg transition-all cursor-pointer ${
+                          isSelected 
+                            ? 'border-blue-500 bg-blue-100' 
+                            : canSwap
+                            ? 'border-green-300 bg-green-50 hover:bg-green-100'
+                            : isCurrentWeek 
+                            ? 'border-green-300 bg-green-50' 
+                            : 'border-gray-200 bg-white hover:bg-gray-50'
                         }`}
+                        onClick={() => handleSwapSelect(sunday.teamId, sunday.date)}
                       >
                         <div className="flex items-center justify-between">
                           <div>
@@ -331,38 +407,35 @@ const Index = () => {
                             </h3>
                             <p className="text-sm text-gray-600">
                               Week {index + 1} • {isCurrentWeek ? 'Current Rotation' : 'Upcoming'}
+                              {isSelected && <span className="text-blue-600 font-medium"> • Selected for Swap</span>}
+                              {canSwap && <span className="text-green-600 font-medium"> • Click to Swap</span>}
                             </p>
                           </div>
                           
-                          <div className="flex gap-2">
-                            {scheduledTeams.map((team) => (
-                              <Badge 
-                                key={team.id} 
-                                variant={isCurrentWeek ? "default" : "secondary"}
-                                className="px-3 py-1"
-                              >
-                                {team.leader}
-                              </Badge>
-                            ))}
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant={isCurrentWeek ? "default" : "secondary"}
+                              className="px-3 py-1"
+                            >
+                              {scheduledTeam?.leader}
+                            </Badge>
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <div className="space-y-2">
-                            {scheduledTeams.map((team) => (
-                              <div key={team.id} className="text-sm">
-                                <span className="font-medium">{team.leader}:</span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {team.members.map((member, index) => (
-                                    <Badge key={index} variant="outline" className="text-xs">
-                                      {member}
-                                    </Badge>
-                                  ))}
-                                </div>
+                        {scheduledTeam && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="text-sm">
+                              <span className="font-medium">{scheduledTeam.leader}:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {scheduledTeam.members.map((member, index) => (
+                                  <Badge key={index} variant="outline" className="text-xs">
+                                    {member}
+                                  </Badge>
+                                ))}
                               </div>
-                            ))}
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
@@ -376,101 +449,7 @@ const Index = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-semibold text-gray-900">Swap Requests</h3>
-              <Button onClick={() => setShowSwapForm(!showSwapForm)} className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                New Swap Request
-              </Button>
             </div>
-
-            {showSwapForm && (
-              <Card className="border-blue-200 bg-blue-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ArrowRightLeft className="w-5 h-5" />
-                    Request Team Swap
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSwapSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="fromTeam">From Team</Label>
-                        <Select value={swapForm.fromTeam} onValueChange={(value) => setSwapForm({...swapForm, fromTeam: value})}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select team to swap from" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {teams.map((team) => (
-                              <SelectItem key={team.id} value={team.leader}>
-                                {team.leader}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="toTeam">To Team</Label>
-                        <Select value={swapForm.toTeam} onValueChange={(value) => setSwapForm({...swapForm, toTeam: value})}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select team to swap with" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {teams.filter(team => team.leader !== swapForm.fromTeam).map((team) => (
-                              <SelectItem key={team.id} value={team.leader}>
-                                {team.leader}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="date">Service Date</Label>
-                        <Input
-                          id="date"
-                          type="date"
-                          value={swapForm.date}
-                          onChange={(e) => setSwapForm({...swapForm, date: e.target.value})}
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="requestedBy">Requested By</Label>
-                        <Input
-                          id="requestedBy"
-                          value={swapForm.requestedBy}
-                          onChange={(e) => setSwapForm({...swapForm, requestedBy: e.target.value})}
-                          placeholder="Your name"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="reason">Reason (Optional)</Label>
-                      <Textarea
-                        id="reason"
-                        value={swapForm.reason}
-                        onChange={(e) => setSwapForm({...swapForm, reason: e.target.value})}
-                        placeholder="Brief explanation for the swap request..."
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button type="submit">Submit Request</Button>
-                      <Button type="button" variant="outline" onClick={() => setShowSwapForm(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-            )}
 
             <div className="space-y-4">
               {swapRequests.length === 0 ? (
@@ -478,55 +457,62 @@ const Index = () => {
                   <CardContent className="text-center py-8">
                     <ArrowRightLeft className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600">No swap requests yet</p>
+                    <p className="text-sm text-gray-500 mt-2">Use the visual calendar to request swaps</p>
                   </CardContent>
                 </Card>
               ) : (
-                swapRequests.map((request) => (
-                  <Card key={request.id} className={`transition-all duration-200 hover:shadow-lg ${getStatusColor(request.status)}`}>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            {getStatusIcon(request.status)}
-                            <h4 className="font-semibold text-lg">
-                              {request.fromTeam} → {request.toTeam}
-                            </h4>
-                            <Badge variant="outline" className="capitalize">
-                              {request.status}
-                            </Badge>
+                swapRequests.map((request) => {
+                  const fromTeam = getTeamById(request.fromTeamId);
+                  const toTeam = getTeamById(request.toTeamId);
+                  
+                  return (
+                    <Card key={request.id} className={`transition-all duration-200 hover:shadow-lg ${getStatusColor(request.status)}`}>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              {getStatusIcon(request.status)}
+                              <h4 className="font-semibold text-lg">
+                                {fromTeam?.leader} ↔ {toTeam?.leader}
+                              </h4>
+                              <Badge variant="outline" className="capitalize">
+                                {request.status}
+                              </Badge>
+                            </div>
+                            
+                            <div className="space-y-1 text-sm">
+                              <p><span className="font-medium">From:</span> {formatDate(request.fromDate)}</p>
+                              <p><span className="font-medium">To:</span> {formatDate(request.toDate)}</p>
+                              <p><span className="font-medium">Requested by:</span> {request.requestedBy}</p>
+                              {request.reason && (
+                                <p><span className="font-medium">Reason:</span> {request.reason}</p>
+                              )}
+                            </div>
                           </div>
-                          
-                          <div className="space-y-1 text-sm">
-                            <p><span className="font-medium">Date:</span> {formatDate(request.date)}</p>
-                            <p><span className="font-medium">Requested by:</span> {request.requestedBy}</p>
-                            {request.reason && (
-                              <p><span className="font-medium">Reason:</span> {request.reason}</p>
-                            )}
-                          </div>
-                        </div>
 
-                        {request.status === 'pending' && (
-                          <div className="flex gap-2 ml-4">
-                            <Button
-                              size="sm"
-                              onClick={() => updateSwapStatus(request.id, 'approved')}
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateSwapStatus(request.id, 'rejected')}
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                          {request.status === 'pending' && (
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                size="sm"
+                                onClick={() => updateSwapStatus(request.id, 'approved')}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateSwapStatus(request.id, 'rejected')}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </div>
@@ -536,10 +522,11 @@ const Index = () => {
         <Card className="mt-6 bg-blue-50 border-blue-200">
           <CardContent className="pt-6">
             <div className="text-center">
-              <h3 className="font-semibold text-blue-900 mb-2">Rotation Pattern</h3>
+              <h3 className="font-semibold text-blue-900 mb-2">Dynamic Rotation Pattern</h3>
               <p className="text-blue-700 text-sm">
-                Teams serve for 2 consecutive weeks, then take a 2-week break. 
-                Approved swaps will automatically update the Sunday schedule.
+                Each team serves for 2 consecutive weeks, then rotates to the next team. 
+                With {teams.length} teams, each team gets {Math.floor(100 / teams.length)}% of the Sundays.
+                Click on Sundays in the schedule to request swaps visually.
               </p>
             </div>
           </CardContent>
