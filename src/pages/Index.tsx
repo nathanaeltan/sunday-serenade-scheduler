@@ -30,12 +30,62 @@ import {
   subscribeToManualOverrides,
   getAllData,
   type Team,
-  type SwapRequest
+  type SwapRequest,
+  getSongSchedule,
+  getUniqueSongs
 } from "@/lib/firebaseService";
+import UniqueSongsManager from "@/components/UniqueSongsManager";
+import Fuse from 'fuse.js';
 
 interface WeekData {
   date: string;
   teamId: number;
+}
+
+// Utility: Advanced Title Case
+function toTitleCase(str) {
+  const minorWords = [
+    "a", "an", "and", "as", "at", "but", "by", "for", "in", "nor", "of", "on", "or", "so", "the", "to", "up", "yet"
+  ];
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((word, i, arr) => {
+      if (
+        minorWords.includes(word) &&
+        i !== 0 &&
+        i !== arr.length - 1
+      ) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}
+
+// Helper to get song by slug or fuzzy match
+function getSongBySlugOrFuzzy(slug, uniqueSongs) {
+  if (uniqueSongs[slug]) return uniqueSongs[slug];
+
+  // Ensure allSongs is typed as array of objects with a title property
+  const allSongs = Object.values(uniqueSongs) as { title: string; link1?: string; link2?: string }[];
+  const fuse = new Fuse(allSongs, {
+    keys: ['title'],
+    threshold: 0.5, // Looser match
+    includeScore: true,
+  });
+  const guessTitle = slug.replace(/-/g, ' ');
+  let result = fuse.search(guessTitle);
+  if (result.length > 0) {
+    return result[0].item;
+  }
+  // Fallback: substring match
+  const fallback = allSongs.find(song =>
+    guessTitle.toLowerCase().includes(song.title.toLowerCase()) ||
+    song.title.toLowerCase().includes(guessTitle.toLowerCase())
+  );
+  if (fallback) return fallback;
+  return null;
 }
 
 const Index = () => {
@@ -55,7 +105,7 @@ const Index = () => {
   const [dataLoaded, setDataLoaded] = useState(false);
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'schedule' | 'swaps'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'swaps' | 'uniqueSongs'>('schedule');
   const [isManualMode, setIsManualMode] = useState(false);
   const [selectedSwapFrom, setSelectedSwapFrom] = useState<{teamId: number, date: string} | null>(null);
   const [showTeamSelector, setShowTeamSelector] = useState<{date: string, teamId: number} | null>(null);
@@ -76,6 +126,20 @@ const Index = () => {
     fromDate: string;
     toDate: string;
   } | null>(null);
+
+  const [songSchedule, setSongSchedule] = useState({});
+  const [uniqueSongs, setUniqueSongs] = useState({});
+  const [showSongsModal, setShowSongsModal] = useState(false);
+  const [selectedSongs, setSelectedSongs] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
+
+  const songLabels = {
+    opening_song: 'Opening Song',
+    song_2: 'Song 2',
+    pre_sermon: 'Pre-sermon',
+    response: 'Response',
+    kids_song: 'Kids Song',
+  };
 
   // ===== DATA LOADING & FIREBASE EFFECTS =====
   
@@ -155,6 +219,14 @@ const Index = () => {
     if (!manualOverrides) return;
     saveManualOverrides(manualOverrides);
   }, [manualOverrides, dataLoaded]);
+
+  useEffect(() => {
+    async function fetchSongsData() {
+      setSongSchedule(await getSongSchedule());
+      setUniqueSongs(await getUniqueSongs());
+    }
+    fetchSongsData();
+  }, []);
 
   // ===== SCHEDULE GENERATION =====
   
@@ -380,6 +452,12 @@ const Index = () => {
     setManualOverrides({});
   };
 
+  const handleShowSongs = (date) => {
+    setSelectedDate(date);
+    setSelectedSongs(songSchedule[date] || null);
+    setShowSongsModal(true);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
@@ -414,6 +492,14 @@ const Index = () => {
               <ArrowRightLeft className="w-4 h-4" />
               Swap Requests
             </Button>
+            <Button
+              variant={activeTab === 'uniqueSongs' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('uniqueSongs')}
+              className="flex items-center gap-2"
+            >
+              🎵
+              Songs
+            </Button>
           </div>
         </div>
 
@@ -442,7 +528,7 @@ const Index = () => {
                   <p className="text-sm text-blue-800">
                     Click on any Sunday to manually assign a team. This overrides the automatic rotation.
                   </p>
-                  {Object.keys(manualOverrides).length > 0 && (
+                  {/* {Object.keys(manualOverrides).length > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -451,7 +537,7 @@ const Index = () => {
                     >
                       Clear All Manual Assignments
                     </Button>
-                  )}
+                  )} */}
                 </div>
               )}
             </CardContent>
@@ -620,6 +706,45 @@ const Index = () => {
           </DialogContent>
         </Dialog>
 
+        {/* Songs Modal */}
+        <Dialog open={showSongsModal} onOpenChange={setShowSongsModal}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Songs for {selectedDate ? formatDate(selectedDate) : ''}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {selectedSongs ? (
+                <>
+                  {['opening_song', 'song_2', 'pre_sermon', 'response', 'kids_song'].map((key) => {
+                    const slug = selectedSongs[key];
+                    if (!slug) return null;
+                    const song = getSongBySlugOrFuzzy(slug, uniqueSongs);
+                    return (
+                      <div key={key} className="border-b pb-2 mb-2">
+                        <div className="text-xs text-gray-500 mb-1">{songLabels[key]}</div>
+                        <div className="font-semibold">{toTitleCase(song?.title || slug.replace(/-/g, ' '))}</div>
+                        {song && (song.link1 || song.link2) ? (
+                          <div className="flex gap-2 mt-1">
+                            {song.link1 && <a href={song.link1} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">Link 1</a>}
+                            {song.link2 && <a href={song.link2} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">Link 2</a>}
+                          </div>
+                        ) : (
+                          <div className="text-gray-500 text-sm">No links available</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                <div className="text-gray-500">No songs scheduled for this week.</div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowSongsModal(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Conditional rendering for tabs */}
         {activeTab === 'schedule' && (
           <>
@@ -629,13 +754,13 @@ const Index = () => {
                 <AccordionTrigger>
                   <CardHeader className="flex-row items-center gap-2">
                     <Users className="w-5 h-5" />
-                    <CardTitle className="text-lg font-semibold">Band Leaders & Members</CardTitle>
+                    <CardTitle className="text-lg font-semibold">Bands</CardTitle>
                   </CardHeader>
                 </AccordionTrigger>
                 <AccordionContent>
                   <Card>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                         {teams.map((team) => (
                           <div key={team.id} className="p-4 border rounded-lg bg-white">
                             <div className="flex items-center justify-between mb-2">
@@ -646,7 +771,7 @@ const Index = () => {
                                   className="font-semibold"
                                 />
                               ) : (
-                                <h3 className="font-semibold">{team.leader}</h3>
+                                <h3 className="font-semibold my-0 py-0 leading-none flex-grow">{team.leader}</h3>
                               )}
                               
                               {editingTeam === team.id ? (
@@ -788,6 +913,14 @@ const Index = () => {
                             >
                               {scheduledTeam?.leader}
                             </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="ml-2"
+                              onClick={e => { e.stopPropagation(); handleShowSongs(sunday.date); }}
+                            >
+                              Songs
+                            </Button>
                           </div>
                         </div>
 
@@ -1028,6 +1161,10 @@ const Index = () => {
               </Card>
             )}
           </div>
+        )}
+
+        {activeTab === 'uniqueSongs' && (
+          <UniqueSongsManager />
         )}
 
         {/* Rotation Info */}

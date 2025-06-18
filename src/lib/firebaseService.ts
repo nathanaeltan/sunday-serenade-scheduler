@@ -161,4 +161,14 @@ export const getAllData = useLocalStorageFallback(async (): Promise<WorshipSched
     swapRequests,
     manualOverrides
   };
-}); 
+});
+
+export const getSongSchedule = async () => {
+  const snapshot = await get(ref(database, 'songSchedule'));
+  return snapshot.exists() ? snapshot.val() : {};
+};
+
+export const getUniqueSongs = async () => {
+  const snapshot = await get(ref(database, 'uniqueSongs'));
+  return snapshot.exists() ? snapshot.val() : {};
+}; 

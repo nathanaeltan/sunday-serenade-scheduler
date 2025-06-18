@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
+import { getFirestore } from 'firebase/firestore';
 
 // Your Firebase configuration
 // Use environment variables for production security
@@ -23,5 +24,8 @@ export const database = getDatabase(app);
 
 // Initialize Firebase Storage for chord sheet uploads
 export const storage = getStorage(app);
+
+// Initialize Firestore for storing unique songs and other data
+export const db = getFirestore(app);
 
 export default app; 
