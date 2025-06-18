@@ -36,6 +36,7 @@ import {
 } from "@/lib/firebaseService";
 import UniqueSongsManager from "@/components/UniqueSongsManager";
 import Fuse from 'fuse.js';
+import CalendarScheduleView from '@/components/CalendarScheduleView';
 
 interface WeekData {
   date: string;
@@ -88,6 +89,12 @@ function getSongBySlugOrFuzzy(slug, uniqueSongs) {
   return null;
 }
 
+// Helper to format a Date as YYYY-MM-DD in local time
+function toLocalDateString(date: Date) {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 const Index = () => {
   // Default teams array
   const defaultTeams: Team[] = [
@@ -132,6 +139,7 @@ const Index = () => {
   const [showSongsModal, setShowSongsModal] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
+  const [scheduleView, setScheduleView] = useState<'list' | 'calendar'>('list');
 
   const songLabels = {
     opening_song: 'Opening Song',
@@ -230,57 +238,76 @@ const Index = () => {
 
   // ===== SCHEDULE GENERATION =====
   
-  // Generate next 12 Sundays with dynamic rotation
-  const generateSundays = (): WeekData[] => {
-    const sundays: WeekData[] = [];
+  // Generate all Sundays until the end of the year, and include Christmas as a special date
+  const generateSundays = (): (WeekData & { isChristmas?: boolean })[] => {
+    const sundays: (WeekData & { isChristmas?: boolean })[] = [];
     const today = new Date();
+    const year = today.getFullYear();
     const nextSunday = new Date(today);
-    
+
     // Find next Sunday
     const daysUntilSunday = 7 - today.getDay();
     nextSunday.setDate(today.getDate() + (daysUntilSunday === 7 ? 0 : daysUntilSunday));
-    
+
     const numTeams = teams.length;
-    
-    for (let i = 0; i < 12; i++) {
-      const sunday = new Date(nextSunday);
-      sunday.setDate(nextSunday.getDate() + (i * 7));
-      const dateString = sunday.toISOString().split('T')[0];
-      
+    let i = 0;
+    let current = new Date(nextSunday);
+    while (current.getFullYear() === year) {
+      const dateString = toLocalDateString(current);
       // Check for manual override first
       if (manualOverrides[dateString]) {
         sundays.push({
           date: dateString,
-          teamId: manualOverrides[dateString]
+          teamId: manualOverrides[dateString],
         });
-        continue;
-      }
-      
-      // Check for approved swaps for this date
-      const approvedSwap = swapRequests.find(swap => 
-        (swap.fromDate === dateString || swap.toDate === dateString) && swap.status === 'approved'
-      );
-      
-      let scheduledTeamId;
-      if (approvedSwap) {
-        // Apply the swap
-        if (approvedSwap.fromDate === dateString) {
-          scheduledTeamId = approvedSwap.toTeamId;
-        } else {
-          scheduledTeamId = approvedSwap.fromTeamId;
-        }
       } else {
-        // Normal rotation: each team gets 2 consecutive weeks
-        const teamIndex = Math.floor(i / 2) % numTeams;
-        scheduledTeamId = teams[teamIndex]?.id || 1;
+        // Check for approved swaps for this date
+        const approvedSwap = swapRequests.find(swap =>
+          (swap.fromDate === dateString || swap.toDate === dateString) && swap.status === 'approved'
+        );
+        let scheduledTeamId;
+        if (approvedSwap) {
+          if (approvedSwap.fromDate === dateString) {
+            scheduledTeamId = approvedSwap.toTeamId;
+          } else {
+            scheduledTeamId = approvedSwap.fromTeamId;
+          }
+        } else {
+          // Normal rotation: each team gets 2 consecutive weeks
+          const teamIndex = Math.floor(i / 2) % numTeams;
+          scheduledTeamId = teams[teamIndex]?.id || 1;
+        }
+        sundays.push({
+          date: dateString,
+          teamId: scheduledTeamId,
+        });
       }
-      
+      // Next Sunday
+      current.setDate(current.getDate() + 7);
+      i++;
+    }
+
+    // Add Christmas (Dec 25) if not already a Sunday
+    const christmas = new Date(year, 11, 25); // December is month 11
+    const christmasString = toLocalDateString(christmas);
+    const alreadyIncluded = sundays.some(s => s.date === christmasString);
+    if (!alreadyIncluded) {
+      // Assign to the next team in rotation
+      const teamIndex = Math.floor(i / 2) % numTeams;
       sundays.push({
-        date: dateString,
-        teamId: scheduledTeamId
+        date: christmasString,
+        teamId: teams[teamIndex]?.id || 1,
+        isChristmas: true,
+      });
+    } else {
+      // Mark the existing Sunday as Christmas if it falls on Dec 25
+      sundays.forEach(s => {
+        if (s.date === christmasString) s.isChristmas = true;
       });
     }
-    
+
+    // Sort by date ascending
+    sundays.sort((a, b) => a.date.localeCompare(b.date));
     return sundays;
   };
 
@@ -503,46 +530,38 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Manual Mode Toggle */}
-        <div className="flex justify-center mb-6">
-          <Card className="w-full max-w-md">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-gray-900">Schedule Mode</h3>
-                  <p className="text-sm text-gray-600">
-                    {isManualMode ? 'Manual Override' : 'Auto Rotation + Swaps'}
-                  </p>
+        {/* Manual Mode Toggle - only show on schedule tab */}
+        {activeTab === 'schedule' && (
+          <div className="flex justify-center mb-6">
+            <Card className="w-full max-w-md">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Schedule Mode</h3>
+                    <p className="text-sm text-gray-600">
+                      {isManualMode ? 'Manual Override' : 'Auto Rotation + Swaps'}
+                    </p>
+                  </div>
+                  <Button
+                    variant={isManualMode ? 'default' : 'outline'}
+                    onClick={handleToggleManualMode}
+                    className="flex items-center gap-2"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    {isManualMode ? 'Manual Mode' : 'Auto Mode'}
+                  </Button>
                 </div>
-                <Button
-                  variant={isManualMode ? 'default' : 'outline'}
-                  onClick={handleToggleManualMode}
-                  className="flex items-center gap-2"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  {isManualMode ? 'Manual Mode' : 'Auto Mode'}
-                </Button>
-              </div>
-              {isManualMode && (
-                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    Click on any Sunday to manually assign a team. This overrides the automatic rotation.
-                  </p>
-                  {/* {Object.keys(manualOverrides).length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={clearAllManualOverrides}
-                      className="mt-2"
-                    >
-                      Clear All Manual Assignments
-                    </Button>
-                  )} */}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                {isManualMode && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      Click on any Sunday to manually assign a team. This overrides the automatic rotation.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Team Selector Dialog */}
         <Dialog open={!!showTeamSelector} onOpenChange={() => setShowTeamSelector(null)}>
@@ -748,202 +767,227 @@ const Index = () => {
         {/* Conditional rendering for tabs */}
         {activeTab === 'schedule' && (
           <>
-            {/* Band Leaders & Members Section (collapsible) */}
-            <Accordion type="multiple" defaultValue={[]} className="w-full mb-8">
-              <AccordionItem value="item-1">
-                <AccordionTrigger>
-                  <CardHeader className="flex-row items-center gap-2">
-                    <Users className="w-5 h-5" />
-                    <CardTitle className="text-lg font-semibold">Bands</CardTitle>
-                  </CardHeader>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <Card>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        {teams.map((team) => (
-                          <div key={team.id} className="p-4 border rounded-lg bg-white">
-                            <div className="flex items-center justify-between mb-2">
-                              {editingTeam === team.id ? (
-                                <Input
-                                  value={editForm.leader}
-                                  onChange={(e) => setEditForm({ ...editForm, leader: e.target.value })}
-                                  className="font-semibold"
-                                />
-                              ) : (
-                                <h3 className="font-semibold my-0 py-0 leading-none flex-grow">{team.leader}</h3>
-                              )}
-                              
-                              {editingTeam === team.id ? (
-                                <div className="flex gap-1">
-                                  <Button size="sm" onClick={() => saveChanges(team.id)}>
-                                    <Save className="w-3 h-3" />
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={cancelEditing}>
-                                    <X className="w-3 h-3" />
-                                  </Button>
+            <div className="flex justify-end mb-4">
+              <Button
+                variant={scheduleView === 'list' ? 'default' : 'outline'}
+                onClick={() => setScheduleView('list')}
+                className="mr-2"
+              >
+                List View
+              </Button>
+              <Button
+                variant={scheduleView === 'calendar' ? 'default' : 'outline'}
+                onClick={() => setScheduleView('calendar')}
+              >
+                Calendar View
+              </Button>
+            </div>
+            {scheduleView === 'list' ? (
+              <>
+                {/* Band Leaders & Members Section (collapsible) */}
+                <Accordion type="multiple" defaultValue={[]} className="w-full mb-8">
+                  <AccordionItem value="item-1">
+                    <AccordionTrigger>
+                      <CardHeader className="flex-row items-center gap-2">
+                        <Users className="w-5 h-5" />
+                        <CardTitle className="text-lg font-semibold">Bands</CardTitle>
+                      </CardHeader>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <Card>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            {teams.map((team) => (
+                              <div key={team.id} className="p-4 border rounded-lg bg-white">
+                                <div className="flex items-center justify-between mb-2">
+                                  {editingTeam === team.id ? (
+                                    <Input
+                                      value={editForm.leader}
+                                      onChange={(e) => setEditForm({ ...editForm, leader: e.target.value })}
+                                      className="font-semibold"
+                                    />
+                                  ) : (
+                                    <h3 className="font-semibold my-0 py-0 leading-none flex-grow">{team.leader}</h3>
+                                  )}
+                                  
+                                  {editingTeam === team.id ? (
+                                    <div className="flex gap-1">
+                                      <Button size="sm" onClick={() => saveChanges(team.id)}>
+                                        <Save className="w-3 h-3" />
+                                      </Button>
+                                      <Button size="sm" variant="outline" onClick={cancelEditing}>
+                                        <X className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Button size="sm" variant="outline" onClick={() => startEditing(team)}>
+                                      <Edit2 className="w-3 h-3" />
+                                    </Button>
+                                  )}
                                 </div>
-                              ) : (
-                                <Button size="sm" variant="outline" onClick={() => startEditing(team)}>
-                                  <Edit2 className="w-3 h-3" />
-                                </Button>
-                              )}
-                            </div>
-                            
-                            <div>
-                              <Label className="text-xs text-gray-600">Members</Label>
-                              {editingTeam === team.id ? (
-                                <Textarea
-                                  value={editForm.members}
-                                  onChange={(e) => setEditForm({ ...editForm, members: e.target.value })}
-                                  placeholder="Enter member names separated by commas"             
-                                  className="mt-1"
-                                  rows={2}
-                                />
-                              ) : (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {team.members.map((member, index) => (
-                                    <Badge key={index} variant="secondary" className="text-xs">
-                                      {member}
-                                    </Badge>
-                                  ))}
+                                
+                                <div>
+                                  <Label className="text-xs text-gray-600">Members</Label>
+                                  {editingTeam === team.id ? (
+                                    <Textarea
+                                      value={editForm.members}
+                                      onChange={(e) => setEditForm({ ...editForm, members: e.target.value })}
+                                      placeholder="Enter member names separated by commas"             
+                                      className="mt-1"
+                                      rows={2}
+                                    />
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {team.members.map((member, index) => (
+                                        <Badge key={index} variant="secondary" className="text-xs">
+                                          {member}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        </CardContent>
+                      </Card>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+
+                {/* Visual Swap Interface */}
+                {selectedSwapFrom && (
+                  <Card className="mb-8 border-blue-300 bg-blue-50">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-blue-900">
+                        <ArrowRightLeft className="w-5 h-5" />
+                        Select Sunday to Swap With
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <p className="text-blue-800">
+                          Selected: <strong>{getTeamById(selectedSwapFrom.teamId)?.leader}</strong> on{' '}
+                          <strong>{formatDate(selectedSwapFrom.date)}</strong>
+                        </p>
+                        <p className="text-sm text-blue-700">
+                          Click on another Sunday to complete the swap request.
+                        </p>
+                        
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setSelectedSwapFrom(null);
+                          }}
+                          className="mt-2"
+                        >
+                          Cancel Swap
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+                )}
 
-            {/* Visual Swap Interface */}
-            {selectedSwapFrom && (
-              <Card className="mb-8 border-blue-300 bg-blue-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-blue-900">
-                    <ArrowRightLeft className="w-5 h-5" />
-                    Select Sunday to Swap With
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <p className="text-blue-800">
-                      Selected: <strong>{getTeamById(selectedSwapFrom.teamId)?.leader}</strong> on{' '}
-                      <strong>{formatDate(selectedSwapFrom.date)}</strong>
-                    </p>
-                    <p className="text-sm text-blue-700">
-                      Click on another Sunday to complete the swap request.
-                    </p>
-                    
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        setSelectedSwapFrom(null);
-                      }}
-                      className="mt-2"
-                    >
-                      Cancel Swap
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Calendar Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Sunday Schedule
-                  {selectedSwapFrom && (
-                    <span className="text-sm font-normal text-blue-600 ml-2">
-                      (Click a different Sunday to swap with)
-                    </span>
-                  )}
-                  {isManualMode && (
-                    <span className="text-sm font-normal text-green-600 ml-2">
-                      (Click any Sunday to manually assign team)
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {sundays.map((sunday, index) => {
-                    const scheduledTeam = getTeamById(sunday.teamId);
-                    const isCurrentWeek = index < 2;
-                    const isSelected = isDateInSwapSelection(sunday.teamId, sunday.date);
-                    const canSwap = canSwapWith(sunday.teamId, sunday.date);
-                    const isManualOverride = manualOverrides[sunday.date];
-                    
-                    return (
-                      <div 
-                        key={sunday.date}
-                        className={`p-4 border rounded-lg transition-all cursor-pointer ${
-                          isSelected 
-                            ? 'border-blue-500 bg-blue-100' 
-                            : canSwap
-                            ? 'border-green-300 bg-green-50 hover:bg-green-100'
-                            : isCurrentWeek 
-                            ? 'border-green-300 bg-green-50' 
-                            : 'border-gray-200 bg-white hover:bg-gray-50'
-                        }`}
-                        onClick={() => handleDateClick(sunday.teamId, sunday.date)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              {formatDate(sunday.date)}
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                              Week {index + 1} • {isCurrentWeek ? 'Current Rotation' : 'Upcoming'}
-                              {isSelected && <span className="text-blue-600 font-medium"> • Selected for Swap</span>}
-                              {canSwap && <span className="text-green-600 font-medium"> • Click to Swap</span>}
-                              {isManualMode && !isManualOverride && <span className="text-green-600 font-medium"> • Click to Assign</span>}
-                            </p>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Badge 
-                              variant={isCurrentWeek ? "default" : "secondary"}
-                              className="px-3 py-1"
-                            >
-                              {scheduledTeam?.leader}
-                            </Badge>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="ml-2"
-                              onClick={e => { e.stopPropagation(); handleShowSongs(sunday.date); }}
-                            >
-                              Songs
-                            </Button>
-                          </div>
-                        </div>
-
-                        {scheduledTeam && (
-                          <div className="mt-3 pt-3 border-t border-gray-200">
-                            <div className="text-sm">
-                              <span className="font-medium">{scheduledTeam.leader}:</span>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {scheduledTeam.members.map((member, index) => (
-                                  <Badge key={index} variant="outline" className="text-xs">
-                                    {member}
-                                  </Badge>
-                                ))}
+                {/* Calendar Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="w-5 h-5" />
+                      Sunday Schedule
+                      {selectedSwapFrom && (
+                        <span className="text-sm font-normal text-blue-600 ml-2">
+                          (Click a different Sunday to swap with)
+                        </span>
+                      )}
+                      {isManualMode && (
+                        <span className="text-sm font-normal text-green-600 ml-2">
+                          (Click any Sunday to manually assign team)
+                        </span>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {sundays.map((sunday, index) => {
+                        const scheduledTeam = getTeamById(sunday.teamId);
+                        const isCurrentWeek = index < 2;
+                        const isSelected = isDateInSwapSelection(sunday.teamId, sunday.date);
+                        const canSwap = canSwapWith(sunday.teamId, sunday.date);
+                        const isManualOverride = manualOverrides[sunday.date];
+                        
+                        return (
+                          <div 
+                            key={sunday.date}
+                            className={`p-4 border rounded-lg transition-all cursor-pointer ${
+                              isSelected 
+                                ? 'border-blue-500 bg-blue-100' 
+                                : canSwap
+                                ? 'border-green-300 bg-green-50 hover:bg-green-100'
+                                : isCurrentWeek 
+                                ? 'border-green-300 bg-green-50' 
+                                : 'border-gray-200 bg-white hover:bg-gray-50'
+                            }`}
+                            onClick={() => handleDateClick(sunday.teamId, sunday.date)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                  {formatDate(sunday.date)}
+                                </h3>
+                                <p className="text-sm text-gray-600">
+                                  Week {index + 1} • {isCurrentWeek ? 'Current Rotation' : 'Upcoming'}
+                                  {isSelected && <span className="text-blue-600 font-medium"> • Selected for Swap</span>}
+                                  {canSwap && <span className="text-green-600 font-medium"> • Click to Swap</span>}
+                                  {isManualMode && !isManualOverride && <span className="text-green-600 font-medium"> • Click to Assign</span>}
+                                </p>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                <Badge 
+                                  variant={isCurrentWeek ? "default" : "secondary"}
+                                  className="px-3 py-1"
+                                >
+                                  {scheduledTeam?.leader}
+                                </Badge>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="ml-2"
+                                  onClick={e => { e.stopPropagation(); handleShowSongs(sunday.date); }}
+                                >
+                                  Songs
+                                </Button>
                               </div>
                             </div>
+
+                            {scheduledTeam && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="text-sm">
+                                  <span className="font-medium">{scheduledTeam.leader}:</span>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {scheduledTeam.members.map((member, index) => (
+                                      <Badge key={index} variant="outline" className="text-xs">
+                                        {member}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <CalendarScheduleView
+                sundays={sundays}
+                getTeamById={getTeamById}
+                onShowSongs={handleShowSongs}
+              />
+            )}
           </>
         )}
 
