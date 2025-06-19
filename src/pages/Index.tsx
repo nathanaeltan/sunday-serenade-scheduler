@@ -507,25 +507,62 @@ const Index = () => {
       if (!slug) return null;
       const song = getSongBySlugOrFuzzy(slug, uniqueSongs);
       return (
-        <div key={key} className="border-b pb-2 mb-2">
-          <div className="text-xs text-gray-500 mb-1">{songLabels[key]}</div>
-          <div className="font-semibold">{toTitleCase(song?.title || slug.replace(/-/g, ' '))}</div>
-          {song && (song.link1 || song.link2) ? (
-            <div className="flex gap-2 mt-1">
-              {song.link1 && <a href={song.link1} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">Chords</a>}
-              {song.link2 && <a href={song.link2} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">Link 2</a>}
+        <div key={key} className="border-b pb-4 mb-4 last:border-b-0 last:mb-0 last:pb-0">
+          <div className="text-xs font-medium text-gray-500 mb-2">{songLabels[key]}</div>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="font-semibold text-gray-900">{toTitleCase(song?.title || slug.replace(/-/g, ' '))}</div>
+                {song?.artist && (
+                  <div className="text-sm text-gray-600 mt-0.5">{song.artist}</div>
+                )}
+              </div>
+              {song && song.spotify && (
+                <a 
+                  href={song.spotify} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-green-600 hover:text-green-700 flex items-center gap-1.5 text-sm font-medium"
+                >
+                  <svg width="16" height="16" viewBox="0 0 168 168" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="84" cy="84" r="84" fill="#1ED760"/>
+                    <path d="M122.1 116.2c-2.1 3.4-6.5 4.5-9.9 2.4-27.1-16.6-61.3-20.4-101.7-11.2-3.9.9-7.8-1.5-8.7-5.4-.9-3.9 1.5-7.8 5.4-8.7 43.2-9.7 80.1-5.6 110.1 12.2 3.4 2.1 4.5 6.5 2.4 9.9zm13.9-25.6c-2.6 4.2-8.1 5.6-12.3 3-31.1-19-78.5-24.6-115.2-13.5-4.7 1.4-9.7-1.2-11.1-5.9-1.4-4.7 1.2-9.7 5.9-11.1 41.7-12.2 93.2-6.1 128.2 15.1 4.2 2.6 5.6 8.1 3 12.4zm14.1-28.1c-36.2-21.5-96.2-23.5-130.2-12.9-5.3 1.6-10.9-1.3-12.5-6.6-1.6-5.3 1.3-10.9 6.6-12.5 37.2-11.3 102.6-9.1 143.2 14.1 5 3 6.6 9.5 3.6 14.5-3 5-9.5 6.6-14.5 3.6z" fill="#fff"/>
+                  </svg>
+                  Spotify
+                </a>
+              )}
             </div>
-          ) : (
-            <div className="text-gray-500 text-sm">No links available</div>
-          )}
-          {song && song.spotify && (
-            <div className="mt-1">
-              <a href={song.spotify} target="_blank" rel="noopener noreferrer" className="text-green-600 underline text-sm flex items-center gap-1">
-                <svg width="16" height="16" viewBox="0 0 168 168" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="84" cy="84" r="84" fill="#1ED760"/><path d="M122.1 116.2c-2.1 3.4-6.5 4.5-9.9 2.4-27.1-16.6-61.3-20.4-101.7-11.2-3.9.9-7.8-1.5-8.7-5.4-.9-3.9 1.5-7.8 5.4-8.7 43.2-9.7 80.1-5.6 110.1 12.2 3.4 2.1 4.5 6.5 2.4 9.9zm13.9-25.6c-2.6 4.2-8.1 5.6-12.3 3-31.1-19-78.5-24.6-115.2-13.5-4.7 1.4-9.7-1.2-11.1-5.9-1.4-4.7 1.2-9.7 5.9-11.1 41.7-12.2 93.2-6.1 128.2 15.1 4.2 2.6 5.6 8.1 3 12.4zm14.1-28.1c-36.2-21.5-96.2-23.5-130.2-12.9-5.3 1.6-10.9-1.3-12.5-6.6-1.6-5.3 1.3-10.9 6.6-12.5 37.2-11.3 102.6-9.1 143.2 14.1 5 3 6.6 9.5 3.6 14.5-3 5-9.5 6.6-14.5 3.6z" fill="#fff"/></svg>
-                Spotify
-              </a>
-            </div>
-          )}
+            {song && (song.link1 || song.link2) && (
+              <div className="flex gap-3 mt-1">
+                {song.link1 && (
+                  <a 
+                    href={song.link1} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    Chords
+                  </a>
+                )}
+                {song.link2 && (
+                  <a 
+                    href={song.link2} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Link 2
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       );
     });

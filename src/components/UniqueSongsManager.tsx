@@ -208,6 +208,7 @@ export default function UniqueSongsManager() {
     const q = search.toLowerCase();
     return (
       song.title.toLowerCase().includes(q) ||
+      (song.artist && song.artist.toLowerCase().includes(q)) ||
       (song.link1 && song.link1.toLowerCase().includes(q)) ||
       (song.link2 && song.link2.toLowerCase().includes(q))
     );
@@ -291,12 +292,12 @@ export default function UniqueSongsManager() {
           </div>
         </div>
         {/* Search Bar */}
-        <div className="mt-4">
+        <div className="mt-5">
           <Input
             placeholder="Search songs by title or link..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full"
+            className="w-full mt-2"
           />
         </div>
         {importMessage && (
@@ -398,40 +399,122 @@ export default function UniqueSongsManager() {
 
         <div className="space-y-4">
           {filteredSongs.map((song, idx) => (
-            <div key={song.title} className="p-4 border rounded-lg bg-gray-50 flex flex-col md:flex-row md:items-stretch gap-2">
+            <div key={song.title} className="p-4 border rounded-lg bg-gray-50 flex flex-col md:flex-row md:items-start gap-2">
               <div className="flex-1 flex flex-col justify-between">
                 <div>
                   <div className="font-semibold mb-1">{toTitleCase(song.title)}</div>
                   {song.artist && (
                     <div className="text-xs text-gray-600 mb-1">Artist: {song.artist}</div>
                   )}
-                  <div className="flex flex-col md:flex-row gap-2">
-                    <Input
-                      placeholder="Link 1 (e.g. YouTube, Chord Sheet)"
-                      value={editingIdx === idx ? editBuffer.link1 : song.link1}
-                      onChange={e => setEditBuffer(buf => ({ ...buf, link1: e.target.value }))}
-                      disabled={editingIdx !== idx}
-                    />
-                    <Input
-                      placeholder="Link 2 (optional)"
-                      value={editingIdx === idx ? editBuffer.link2 : song.link2}
-                      onChange={e => setEditBuffer(buf => ({ ...buf, link2: e.target.value }))}
-                      disabled={editingIdx !== idx}
-                    />
+                  <div className="flex flex-col md:flex-row gap-2 items-center">
+                    <div className="flex-1 flex flex-col md:flex-row gap-2 w-full">
+                      <Input
+                        placeholder="Link 1 (e.g. YouTube, Chord Sheet)"
+                        value={editingIdx === idx ? editBuffer.link1 : song.link1}
+                        onChange={e => setEditBuffer(buf => ({ ...buf, link1: e.target.value }))}
+                        disabled={editingIdx !== idx}
+                      />
+                      <Input
+                        placeholder="Link 2 (optional)"
+                        value={editingIdx === idx ? editBuffer.link2 : song.link2}
+                        onChange={e => setEditBuffer(buf => ({ ...buf, link2: e.target.value }))}
+                        disabled={editingIdx !== idx}
+                      />
+                    </div>
+                    <div className="hidden md:block">
+                      {editingIdx === idx ? (
+                        <Button
+                          onClick={() => saveEdit(idx)}
+                          disabled={saving[idx]}
+                          className="w-10 h-10 flex items-center justify-center"
+                          variant="default"
+                        >
+                          <Save className="w-5 h-5" />
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => startEdit(idx)}
+                          className="w-10 h-10 flex items-center justify-center"
+                          variant="outline"
+                        >
+                          <Pencil className="w-5 h-5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-col md:flex-row gap-2 mt-2">
-                    <Input
-                      placeholder="Artist"
-                      value={editingIdx === idx ? editBuffer.artist : song.artist}
-                      onChange={e => setEditBuffer(buf => ({ ...buf, artist: e.target.value }))}
-                      disabled={editingIdx !== idx}
-                    />
-                    <Input
-                      placeholder="Spotify Link (optional)"
-                      value={editingIdx === idx ? editBuffer.spotify : song.spotify}
-                      onChange={e => setEditBuffer(buf => ({ ...buf, spotify: e.target.value }))}
-                      disabled={editingIdx !== idx}
-                    />
+                  <div className="flex flex-col md:flex-row gap-2 mt-2 items-center">
+                    <div className="flex-1 flex flex-col md:flex-row gap-2 w-full">
+                      <Input
+                        placeholder="Artist"
+                        value={editingIdx === idx ? editBuffer.artist : song.artist}
+                        onChange={e => setEditBuffer(buf => ({ ...buf, artist: e.target.value }))}
+                        disabled={editingIdx !== idx}
+                      />
+                      <Input
+                        placeholder="Spotify Link (optional)"
+                        value={editingIdx === idx ? editBuffer.spotify : song.spotify}
+                        onChange={e => setEditBuffer(buf => ({ ...buf, spotify: e.target.value }))}
+                        disabled={editingIdx !== idx}
+                      />
+                    </div>
+                    <div className="hidden md:block">
+                      {editingIdx === idx ? (
+                        <Button
+                          onClick={cancelEdit}
+                          className="w-10 h-10 flex items-center justify-center"
+                          variant="outline"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => setShowDeleteIdx(idx)}
+                          className="w-10 h-10 flex items-center justify-center"
+                          variant="destructive"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {/* Mobile buttons */}
+                  <div className="flex flex-row gap-2 mt-2 md:hidden">
+                    {editingIdx === idx ? (
+                      <>
+                        <Button
+                          onClick={() => saveEdit(idx)}
+                          disabled={saving[idx]}
+                          className="w-10 h-10 flex items-center justify-center"
+                          variant="default"
+                        >
+                          <Save className="w-5 h-5" />
+                        </Button>
+                        <Button
+                          onClick={cancelEdit}
+                          className="w-10 h-10 flex items-center justify-center"
+                          variant="outline"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          onClick={() => startEdit(idx)}
+                          className="w-10 h-10 flex items-center justify-center"
+                          variant="outline"
+                        >
+                          <Pencil className="w-5 h-5" />
+                        </Button>
+                        <Button
+                          onClick={() => setShowDeleteIdx(idx)}
+                          className="w-10 h-10 flex items-center justify-center"
+                          variant="destructive"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                   {song.spotify && (
                     <div className="mt-1">
@@ -442,44 +525,6 @@ export default function UniqueSongsManager() {
                     </div>
                   )}
                 </div>
-              </div>
-              <div className="flex flex-row md:flex-col gap-2 md:justify-end md:items-end mt-2 md:mt-0">
-                {editingIdx === idx ? (
-                  <>
-                    <Button
-                      onClick={() => saveEdit(idx)}
-                      disabled={saving[idx]}
-                      className="w-10 h-10 flex items-center justify-center"
-                      variant="default"
-                    >
-                      <Save className="w-5 h-5" />
-                    </Button>
-                    <Button
-                      onClick={cancelEdit}
-                      className="w-10 h-10 flex items-center justify-center"
-                      variant="outline"
-                    >
-                      <XCircle className="w-5 h-5" />
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      onClick={() => startEdit(idx)}
-                      className="w-10 h-10 flex items-center justify-center"
-                      variant="outline"
-                    >
-                      <Pencil className="w-5 h-5" />
-                    </Button>
-                    <Button
-                      onClick={() => setShowDeleteIdx(idx)}
-                      className="w-10 h-10 flex items-center justify-center"
-                      variant="destructive"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </Button>
-                  </>
-                )}
               </div>
               {/* Delete confirmation dialog */}
               {showDeleteIdx === idx && (
