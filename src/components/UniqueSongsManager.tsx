@@ -48,11 +48,11 @@ export default function UniqueSongsManager() {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newSong, setNewSong] = useState({ title: '', link1: '', link2: '' });
+  const [newSong, setNewSong] = useState({ title: '', artist: '', link1: '', link2: '', spotify: '' });
   const [addingSong, setAddingSong] = useState(false);
   const [search, setSearch] = useState('');
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [editBuffer, setEditBuffer] = useState({ title: '', link1: '', link2: '' });
+  const [editBuffer, setEditBuffer] = useState({ title: '', artist: '', link1: '', link2: '', spotify: '' });
   const [showDeleteIdx, setShowDeleteIdx] = useState<number | null>(null);
 
   useEffect(() => {
@@ -62,14 +62,20 @@ export default function UniqueSongsManager() {
         const snapshot = await get(child(dbRef, 'uniqueSongs'));
         if (snapshot.exists()) {
           // Data is an object keyed by slug, convert to array
-          const data = snapshot.val() as Record<string, { title: string; link1: string; link2: string }>;
-          const loaded = Object.entries(data).map(([slug, value]) => ({ title: value.title || slug, link1: value.link1, link2: value.link2 }));
+          const data = snapshot.val() as Record<string, { title: string; artist?: string; link1: string; link2: string; spotify?: string }>;
+          const loaded = Object.entries(data).map(([slug, value]) => ({
+            title: value.title || slug,
+            artist: value.artist || '',
+            link1: value.link1,
+            link2: value.link2,
+            spotify: value.spotify || ''
+          }));
           setSongs(loaded);
         } else {
-          setSongs(fallbackSongs);
+          setSongs(fallbackSongs.map(song => ({ ...song, artist: '', spotify: '' })));
         }
       } catch (e) {
-        setSongs(fallbackSongs);
+        setSongs(fallbackSongs.map(song => ({ ...song, artist: '', spotify: '' })));
       } finally {
         setLoading(false);
       }
@@ -87,8 +93,10 @@ export default function UniqueSongsManager() {
     try {
       await set(ref(database, `uniqueSongs/${slugify(song.title)}`), {
         title: song.title,
+        artist: song.artist,
         link1: song.link1,
         link2: song.link2,
+        spotify: song.spotify,
       });
     } finally {
       setSaving(s => ({ ...s, [idx]: false }));
@@ -120,8 +128,10 @@ export default function UniqueSongsManager() {
         const slug = slugify(song.title);
         songsObj[slug] = {
           title: song.title,
+          artist: song.artist || '',
           link1: song.link1 || '',
-          link2: song.link2 || ''
+          link2: song.link2 || '',
+          spotify: song.spotify || ''
         };
       });
       await set(ref(database, 'uniqueSongs'), songsObj);
@@ -159,8 +169,10 @@ export default function UniqueSongsManager() {
     try {
       const songToAdd = {
         title: newSong.title.trim().toLowerCase(),
+        artist: newSong.artist.trim(),
         link1: newSong.link1.trim(),
-        link2: newSong.link2.trim()
+        link2: newSong.link2.trim(),
+        spotify: newSong.spotify.trim(),
       };
 
       // Check if song already exists
@@ -177,7 +189,7 @@ export default function UniqueSongsManager() {
       setSongs(prevSongs => [...prevSongs, songToAdd]);
       
       // Reset form
-      setNewSong({ title: '', link1: '', link2: '' });
+      setNewSong({ title: '', artist: '', link1: '', link2: '', spotify: '' });
       setShowAddForm(false);
     } catch (error) {
       alert('Error adding song: ' + error.message);
@@ -187,7 +199,7 @@ export default function UniqueSongsManager() {
   };
 
   const handleCancelAdd = () => {
-    setNewSong({ title: '', link1: '', link2: '' });
+    setNewSong({ title: '', artist: '', link1: '', link2: '', spotify: '' });
     setShowAddForm(false);
   };
 
@@ -210,7 +222,7 @@ export default function UniqueSongsManager() {
   // Cancel editing
   const cancelEdit = () => {
     setEditingIdx(null);
-    setEditBuffer({ title: '', link1: '', link2: '' });
+    setEditBuffer({ title: '', artist: '', link1: '', link2: '', spotify: '' });
   };
 
   // Save edit
@@ -219,8 +231,10 @@ export default function UniqueSongsManager() {
     try {
       await set(ref(database, `uniqueSongs/${slugify(editBuffer.title)}`), {
         title: editBuffer.title,
+        artist: editBuffer.artist,
         link1: editBuffer.link1,
         link2: editBuffer.link2,
+        spotify: editBuffer.spotify,
       });
       setSongs(songs => songs.map((song, i) => i === idx ? { ...editBuffer } : song));
       setEditingIdx(null);
@@ -316,6 +330,17 @@ export default function UniqueSongsManager() {
                   className="bg-white"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-blue-800 mb-1">
+                  Artist
+                </label>
+                <Input
+                  placeholder="Enter artist name"
+                  value={newSong.artist}
+                  onChange={e => setNewSong(prev => ({ ...prev, artist: e.target.value }))}
+                  className="bg-white"
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-blue-800 mb-1">
@@ -339,6 +364,17 @@ export default function UniqueSongsManager() {
                     className="bg-white"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-blue-800 mb-1">
+                  Spotify Link (optional)
+                </label>
+                <Input
+                  placeholder="https://open.spotify.com/track/..."
+                  value={newSong.spotify}
+                  onChange={e => setNewSong(prev => ({ ...prev, spotify: e.target.value }))}
+                  className="bg-white"
+                />
               </div>
               <div className="flex gap-2 pt-2">
                 <Button
@@ -366,6 +402,9 @@ export default function UniqueSongsManager() {
               <div className="flex-1 flex flex-col justify-between">
                 <div>
                   <div className="font-semibold mb-1">{toTitleCase(song.title)}</div>
+                  {song.artist && (
+                    <div className="text-xs text-gray-600 mb-1">Artist: {song.artist}</div>
+                  )}
                   <div className="flex flex-col md:flex-row gap-2">
                     <Input
                       placeholder="Link 1 (e.g. YouTube, Chord Sheet)"
@@ -380,6 +419,28 @@ export default function UniqueSongsManager() {
                       disabled={editingIdx !== idx}
                     />
                   </div>
+                  <div className="flex flex-col md:flex-row gap-2 mt-2">
+                    <Input
+                      placeholder="Artist"
+                      value={editingIdx === idx ? editBuffer.artist : song.artist}
+                      onChange={e => setEditBuffer(buf => ({ ...buf, artist: e.target.value }))}
+                      disabled={editingIdx !== idx}
+                    />
+                    <Input
+                      placeholder="Spotify Link (optional)"
+                      value={editingIdx === idx ? editBuffer.spotify : song.spotify}
+                      onChange={e => setEditBuffer(buf => ({ ...buf, spotify: e.target.value }))}
+                      disabled={editingIdx !== idx}
+                    />
+                  </div>
+                  {song.spotify && (
+                    <div className="mt-1">
+                      <a href={song.spotify} target="_blank" rel="noopener noreferrer" className="text-green-600 underline text-sm flex items-center gap-1">
+                        <svg width="16" height="16" viewBox="0 0 168 168" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="84" cy="84" r="84" fill="#1ED760"/><path d="M122.1 116.2c-2.1 3.4-6.5 4.5-9.9 2.4-27.1-16.6-61.3-20.4-101.7-11.2-3.9.9-7.8-1.5-8.7-5.4-.9-3.9 1.5-7.8 5.4-8.7 43.2-9.7 80.1-5.6 110.1 12.2 3.4 2.1 4.5 6.5 2.4 9.9zm13.9-25.6c-2.6 4.2-8.1 5.6-12.3 3-31.1-19-78.5-24.6-115.2-13.5-4.7 1.4-9.7-1.2-11.1-5.9-1.4-4.7 1.2-9.7 5.9-11.1 41.7-12.2 93.2-6.1 128.2 15.1 4.2 2.6 5.6 8.1 3 12.4zm14.1-28.1c-36.2-21.5-96.2-23.5-130.2-12.9-5.3 1.6-10.9-1.3-12.5-6.6-1.6-5.3 1.3-10.9 6.6-12.5 37.2-11.3 102.6-9.1 143.2 14.1 5 3 6.6 9.5 3.6 14.5-3 5-9.5 6.6-14.5 3.6z" fill="#fff"/></svg>
+                        Spotify
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex flex-row md:flex-col gap-2 md:justify-end md:items-end mt-2 md:mt-0">

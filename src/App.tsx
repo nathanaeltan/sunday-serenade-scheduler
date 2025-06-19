@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import SpotifyCallback from "./pages/SpotifyCallback";
 // import AccessControl from "./components/AccessControl"; // Password-based option
 import UrlAccessControl from "./components/UrlAccessControl"; // URL-based option
 
@@ -58,6 +59,7 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Index />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="callback" element={<SpotifyCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

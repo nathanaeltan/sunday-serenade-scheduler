@@ -500,6 +500,37 @@ const Index = () => {
     setShowSongsModal(true);
   };
 
+  let songList = null;
+  if (selectedSongs) {
+    songList = ['opening_song', 'song_2', 'pre_sermon', 'response', 'kids_song'].map((key) => {
+      const slug = selectedSongs[key];
+      if (!slug) return null;
+      const song = getSongBySlugOrFuzzy(slug, uniqueSongs);
+      return (
+        <div key={key} className="border-b pb-2 mb-2">
+          <div className="text-xs text-gray-500 mb-1">{songLabels[key]}</div>
+          <div className="font-semibold">{toTitleCase(song?.title || slug.replace(/-/g, ' '))}</div>
+          {song && (song.link1 || song.link2) ? (
+            <div className="flex gap-2 mt-1">
+              {song.link1 && <a href={song.link1} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">Chords</a>}
+              {song.link2 && <a href={song.link2} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">Link 2</a>}
+            </div>
+          ) : (
+            <div className="text-gray-500 text-sm">No links available</div>
+          )}
+          {song && song.spotify && (
+            <div className="mt-1">
+              <a href={song.spotify} target="_blank" rel="noopener noreferrer" className="text-green-600 underline text-sm flex items-center gap-1">
+                <svg width="16" height="16" viewBox="0 0 168 168" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="84" cy="84" r="84" fill="#1ED760"/><path d="M122.1 116.2c-2.1 3.4-6.5 4.5-9.9 2.4-27.1-16.6-61.3-20.4-101.7-11.2-3.9.9-7.8-1.5-8.7-5.4-.9-3.9 1.5-7.8 5.4-8.7 43.2-9.7 80.1-5.6 110.1 12.2 3.4 2.1 4.5 6.5 2.4 9.9zm13.9-25.6c-2.6 4.2-8.1 5.6-12.3 3-31.1-19-78.5-24.6-115.2-13.5-4.7 1.4-9.7-1.2-11.1-5.9-1.4-4.7 1.2-9.7 5.9-11.1 41.7-12.2 93.2-6.1 128.2 15.1 4.2 2.6 5.6 8.1 3 12.4zm14.1-28.1c-36.2-21.5-96.2-23.5-130.2-12.9-5.3 1.6-10.9-1.3-12.5-6.6-1.6-5.3 1.3-10.9 6.6-12.5 37.2-11.3 102.6-9.1 143.2 14.1 5 3 6.6 9.5 3.6 14.5-3 5-9.5 6.6-14.5 3.6z" fill="#fff"/></svg>
+                Spotify
+              </a>
+            </div>
+          )}
+        </div>
+      );
+    });
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
@@ -741,43 +772,27 @@ const Index = () => {
         </Dialog>
 
         {/* Songs Modal */}
-        <Dialog open={showSongsModal} onOpenChange={setShowSongsModal}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Songs for {selectedDate ? formatDate(selectedDate) : ''}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {selectedSongs ? (
-                <>
-                  {['opening_song', 'song_2', 'pre_sermon', 'response', 'kids_song'].map((key) => {
-                    const slug = selectedSongs[key];
-                    if (!slug) return null;
-                    const song = getSongBySlugOrFuzzy(slug, uniqueSongs);
-                    return (
-                      <div key={key} className="border-b pb-2 mb-2">
-                        <div className="text-xs text-gray-500 mb-1">{songLabels[key]}</div>
-                        <div className="font-semibold">{toTitleCase(song?.title || slug.replace(/-/g, ' '))}</div>
-                        {song && (song.link1 || song.link2) ? (
-                          <div className="flex gap-2 mt-1">
-                            {song.link1 && <a href={song.link1} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">Link 1</a>}
-                            {song.link2 && <a href={song.link2} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-sm">Link 2</a>}
-                          </div>
-                        ) : (
-                          <div className="text-gray-500 text-sm">No links available</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </>
-              ) : (
-                <div className="text-gray-500">No songs scheduled for this week.</div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowSongsModal(false)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {showSongsModal && (
+          <Dialog open={showSongsModal} onOpenChange={setShowSongsModal}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Songs for {selectedDate ? formatDate(selectedDate) : ''}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {selectedSongs ? (
+                  <>
+                    {songList}
+                  </>
+                ) : (
+                  <div className="text-gray-500">No songs scheduled for this week.</div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowSongsModal(false)}>Close</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Conditional rendering for tabs */}
         {activeTab === 'schedule' && (
