@@ -252,6 +252,13 @@ const Index = () => {
     const numTeams = teams.length;
     let i = 0;
     let current = new Date(nextSunday);
+
+    // Guard against swapRequests not being an array
+    const safeSwapRequests = Array.isArray(swapRequests) ? swapRequests : [];
+    const validSwapRequests = safeSwapRequests.filter(
+      swap => swap && typeof swap === 'object' && 'fromDate' in swap && 'toDate' in swap && 'status' in swap
+    );
+
     while (current.getFullYear() === year) {
       const dateString = toLocalDateString(current);
       // Check for manual override first
@@ -262,7 +269,7 @@ const Index = () => {
         });
       } else {
         // Check for approved swaps for this date
-        const approvedSwap = swapRequests.find(swap =>
+        const approvedSwap = validSwapRequests.find(swap =>
           (swap.fromDate === dateString || swap.toDate === dateString) && swap.status === 'approved'
         );
         let scheduledTeamId;
@@ -292,17 +299,25 @@ const Index = () => {
     const christmasString = toLocalDateString(christmas);
     const alreadyIncluded = sundays.some(s => s.date === christmasString);
     if (!alreadyIncluded) {
-      // Assign to the next team in rotation
-      const teamIndex = Math.floor(i / 2) % numTeams;
+      // Check for manual override for Christmas
+      const teamId = manualOverrides[christmasString]
+        ? manualOverrides[christmasString]
+        : teams[Math.floor(i / 2) % numTeams]?.id || 1;
       sundays.push({
         date: christmasString,
-        teamId: teams[teamIndex]?.id || 1,
+        teamId,
         isChristmas: true,
       });
     } else {
       // Mark the existing Sunday as Christmas if it falls on Dec 25
       sundays.forEach(s => {
-        if (s.date === christmasString) s.isChristmas = true;
+        if (s.date === christmasString) {
+          s.isChristmas = true;
+          // Also update teamId if there is a manual override for Christmas
+          if (manualOverrides[christmasString]) {
+            s.teamId = manualOverrides[christmasString];
+          }
+        }
       });
     }
 
