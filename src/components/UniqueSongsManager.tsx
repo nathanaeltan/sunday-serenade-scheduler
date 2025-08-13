@@ -4,15 +4,15 @@ import { ref, get, set, child } from 'firebase/database';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Plus, X, Pencil, Trash2, Save, XCircle, Link as LinkIcon } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, Save, XCircle, Link as LinkIcon, FileText } from 'lucide-react';
 
 // Fallback data (in case Firebase is empty)
 const fallbackSongs = [
-  { title: "a mighty fortress is our god", link1: "", link2: "" },
-  { title: "all creatures of our god and king", link1: "", link2: "" },
-  { title: "all hail the power of jesus' name", link1: "", link2: "" },
-  { title: "ancient of days", link1: "", link2: "" },
-  { title: "before the throne of god above", link1: "", link2: "" },
+  { title: "a mighty fortress is our god", link1: "", link2: "", lyrics: "" },
+  { title: "all creatures of our god and king", link1: "", link2: "", lyrics: "" },
+  { title: "all hail the power of jesus' name", link1: "", link2: "", lyrics: "" },
+  { title: "ancient of days", link1: "", link2: "", lyrics: "" },
+  { title: "before the throne of god above", link1: "", link2: "", lyrics: "" },
   // ... (add the rest or import from JSON if needed)
 ];
 
@@ -48,11 +48,11 @@ export default function UniqueSongsManager() {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newSong, setNewSong] = useState({ title: '', artist: '', link1: '', link2: '', spotify: '' });
+  const [newSong, setNewSong] = useState({ title: '', artist: '', link1: '', link2: '', lyrics: '', spotify: '' });
   const [addingSong, setAddingSong] = useState(false);
   const [search, setSearch] = useState('');
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [editBuffer, setEditBuffer] = useState({ title: '', artist: '', link1: '', link2: '', spotify: '' });
+  const [editBuffer, setEditBuffer] = useState({ title: '', artist: '', link1: '', link2: '', lyrics: '', spotify: '' });
   const [showDeleteIdx, setShowDeleteIdx] = useState<number | null>(null);
 
   useEffect(() => {
@@ -62,12 +62,13 @@ export default function UniqueSongsManager() {
         const snapshot = await get(child(dbRef, 'uniqueSongs'));
         if (snapshot.exists()) {
           // Data is an object keyed by slug, convert to array
-          const data = snapshot.val() as Record<string, { title: string; artist?: string; link1: string; link2: string; spotify?: string }>;
+          const data = snapshot.val() as Record<string, { title: string; artist?: string; link1: string; link2: string; lyrics?: string; spotify?: string }>;
           const loaded = Object.entries(data).map(([slug, value]) => ({
             title: value.title || slug,
             artist: value.artist || '',
             link1: value.link1,
             link2: value.link2,
+            lyrics: value.lyrics || '',
             spotify: value.spotify || ''
           }));
           setSongs(loaded);
@@ -84,7 +85,15 @@ export default function UniqueSongsManager() {
   }, []);
 
   const handleChange = (idx, field, value) => {
-    setSongs(songs => songs.map((song, i) => i === idx ? { ...song, [field]: value } : song));
+    const filteredSong = filteredSongs[idx];
+    const originalIndex = songs.findIndex(song => song.title === filteredSong.title);
+    
+    if (originalIndex === -1) {
+      console.error('Could not find original song');
+      return;
+    }
+    
+    setSongs(songs => songs.map((song, i) => i === originalIndex ? { ...song, [field]: value } : song));
   };
 
   const handleSave = async (idx) => {
@@ -96,6 +105,7 @@ export default function UniqueSongsManager() {
         artist: song.artist,
         link1: song.link1,
         link2: song.link2,
+        lyrics: song.lyrics,
         spotify: song.spotify,
       });
     } finally {
@@ -104,13 +114,20 @@ export default function UniqueSongsManager() {
   };
 
   const handleDelete = async (idx) => {
-    const song = songs[idx];
-    setSaving(s => ({ ...s, [idx]: true }));
+    const filteredSong = filteredSongs[idx];
+    const originalIndex = songs.findIndex(song => song.title === filteredSong.title);
+    
+    if (originalIndex === -1) {
+      console.error('Could not find original song');
+      return;
+    }
+    
+    setSaving(s => ({ ...s, [originalIndex]: true }));
     try {
-      await set(ref(database, `uniqueSongs/${slugify(song.title)}`), null);
-      setSongs(songs => songs.filter((_, i) => i !== idx));
+      await set(ref(database, `uniqueSongs/${slugify(filteredSong.title)}`), null);
+      setSongs(songs => songs.filter((_, i) => i !== originalIndex));
     } finally {
-      setSaving(s => ({ ...s, [idx]: false }));
+      setSaving(s => ({ ...s, [originalIndex]: false }));
     }
   };
 
@@ -131,6 +148,7 @@ export default function UniqueSongsManager() {
           artist: song.artist || '',
           link1: song.link1 || '',
           link2: song.link2 || '',
+          lyrics: song.lyrics || '',
           spotify: song.spotify || ''
         };
       });
@@ -172,6 +190,7 @@ export default function UniqueSongsManager() {
         artist: newSong.artist.trim(),
         link1: newSong.link1.trim(),
         link2: newSong.link2.trim(),
+        lyrics: newSong.lyrics.trim(),
         spotify: newSong.spotify.trim(),
       };
 
@@ -189,7 +208,7 @@ export default function UniqueSongsManager() {
       setSongs(prevSongs => [...prevSongs, songToAdd]);
       
       // Reset form
-      setNewSong({ title: '', artist: '', link1: '', link2: '', spotify: '' });
+      setNewSong({ title: '', artist: '', link1: '', link2: '', lyrics: '', spotify: '' });
       setShowAddForm(false);
     } catch (error) {
       alert('Error adding song: ' + error.message);
@@ -199,107 +218,116 @@ export default function UniqueSongsManager() {
   };
 
   const handleCancelAdd = () => {
-    setNewSong({ title: '', artist: '', link1: '', link2: '', spotify: '' });
     setShowAddForm(false);
+    setNewSong({ title: '', artist: '', link1: '', link2: '', lyrics: '', spotify: '' });
   };
 
-  // Filtered songs based on search
-  const filteredSongs = songs.filter(song => {
-    const q = search.toLowerCase();
-    return (
-      song.title.toLowerCase().includes(q) ||
-      (song.artist && song.artist.toLowerCase().includes(q)) ||
-      (song.link1 && song.link1.toLowerCase().includes(q)) ||
-      (song.link2 && song.link2.toLowerCase().includes(q))
-    );
-  });
-
-  // Start editing a song
-  const startEdit = (idx: number) => {
+  const startEdit = (idx) => {
+    const song = filteredSongs[idx];
     setEditingIdx(idx);
-    setEditBuffer({ ...filteredSongs[idx] });
+    setEditBuffer({
+      title: song.title,
+      artist: song.artist,
+      link1: song.link1,
+      link2: song.link2,
+      lyrics: song.lyrics,
+      spotify: song.spotify,
+    });
   };
 
-  // Cancel editing
+  const saveEdit = async (idx) => {
+    // Find the actual song in the original songs array by title
+    const filteredSong = filteredSongs[idx];
+    const originalIndex = songs.findIndex(song => song.title === filteredSong.title);
+    
+    if (originalIndex === -1) {
+      console.error('Could not find original song');
+      return;
+    }
+    
+    const updatedSong = { ...filteredSong, ...editBuffer };
+    
+    // Update the original songs array
+    setSongs(songs => songs.map((song, i) => i === originalIndex ? updatedSong : song));
+    setEditingIdx(null);
+    
+    // Save the updated song directly to Firebase
+    setSaving(s => ({ ...s, [originalIndex]: true }));
+    try {
+      await set(ref(database, `uniqueSongs/${slugify(updatedSong.title)}`), {
+        title: updatedSong.title,
+        artist: updatedSong.artist,
+        link1: updatedSong.link1,
+        link2: updatedSong.link2,
+        lyrics: updatedSong.lyrics,
+        spotify: updatedSong.spotify,
+      });
+    } finally {
+      setSaving(s => ({ ...s, [originalIndex]: false }));
+    }
+  };
+
   const cancelEdit = () => {
     setEditingIdx(null);
-    setEditBuffer({ title: '', artist: '', link1: '', link2: '', spotify: '' });
+    setEditBuffer({ title: '', artist: '', link1: '', link2: '', lyrics: '', spotify: '' });
   };
 
-  // Save edit
-  const saveEdit = async (idx: number) => {
-    setSaving(s => ({ ...s, [idx]: true }));
-    try {
-      await set(ref(database, `uniqueSongs/${slugify(editBuffer.title)}`), {
-        title: editBuffer.title,
-        artist: editBuffer.artist,
-        link1: editBuffer.link1,
-        link2: editBuffer.link2,
-        spotify: editBuffer.spotify,
-      });
-      setSongs(songs => songs.map((song, i) => i === idx ? { ...editBuffer } : song));
-      setEditingIdx(null);
-    } finally {
-      setSaving(s => ({ ...s, [idx]: false }));
-    }
+  const confirmDelete = async (idx) => {
+    await handleDelete(idx);
+    setShowDeleteIdx(null);
   };
 
-  // Confirm delete
-  const confirmDelete = async (idx: number) => {
-    setSaving(s => ({ ...s, [idx]: true }));
-    try {
-      await set(ref(database, `uniqueSongs/${slugify(songs[idx].title)}`), null);
-      setSongs(songs => songs.filter((_, i) => i !== idx));
-      setShowDeleteIdx(null);
-    } finally {
-      setSaving(s => ({ ...s, [idx]: false }));
-    }
-  };
+  const filteredSongs = songs.filter(song =>
+    song.title.toLowerCase().includes(search.toLowerCase()) ||
+    song.artist.toLowerCase().includes(search.toLowerCase()) ||
+    song.link1.toLowerCase().includes(search.toLowerCase()) ||
+    song.link2.toLowerCase().includes(search.toLowerCase()) ||
+    song.lyrics.toLowerCase().includes(search.toLowerCase())
+  );
 
-  if (loading) return <div>Loading songs...</div>;
+  if (loading) {
+    return <div className="text-center py-8">Loading songs...</div>;
+  }
 
   return (
-    <Card className="mb-8">
+    <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Songs & Links</CardTitle>
-          <div className="flex gap-2">
-            <Button 
-              size="sm" 
-              variant="default" 
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <CardTitle className="text-2xl font-bold">Songs & Links</CardTitle>
+            <p className="text-gray-600 mt-1">Manage your song library with links to chords, lyrics, and streaming</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
               onClick={() => setShowAddForm(true)}
               className="flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              Add Song
+              + Add Song
             </Button>
-            <label htmlFor="import-songs-json">
-              <Button asChild size="sm" variant="outline" disabled={importing}>
-                <span>{importing ? 'Importing...' : 'Import JSON'}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => document.getElementById('import-input')?.click()}>
+                Import JSON
               </Button>
-              <input
-                id="import-songs-json"
-                type="file"
-                accept="application/json"
-                style={{ display: 'none' }}
-                onChange={handleImport}
-                disabled={importing}
-              />
-            </label>
-            <Button size="sm" variant="outline" onClick={handleExport}>
-              Export JSON
-            </Button>
+              <Button variant="outline" onClick={handleExport}>
+                Export JSON
+              </Button>
+            </div>
           </div>
         </div>
-        {/* Search Bar */}
-        <div className="mt-5">
-          <Input
-            placeholder="Search songs by title or link..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full mt-2"
-          />
-        </div>
+        <input
+          id="import-input"
+          type="file"
+          accept=".json"
+          onChange={handleImport}
+          style={{ display: 'none' }}
+        />
+        <Input
+          placeholder="Search songs by title, artist, or link..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full mt-2"
+        />
         {importMessage && (
           <div className={`mt-2 text-sm ${importMessage.startsWith('Error') ? 'text-red-600' : 'text-green-600'}`}>{importMessage}</div>
         )}
@@ -365,6 +393,17 @@ export default function UniqueSongsManager() {
                     className="bg-white"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-blue-800 mb-1">
+                  Lyrics URL (optional)
+                </label>
+                <Input
+                  placeholder="https://example.com/lyrics..."
+                  value={newSong.lyrics}
+                  onChange={e => setNewSong(prev => ({ ...prev, lyrics: e.target.value }))}
+                  className="bg-white"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-blue-800 mb-1">
@@ -476,6 +515,25 @@ export default function UniqueSongsManager() {
                           value={editBuffer.artist}
                           onChange={e => setEditBuffer(buf => ({ ...buf, artist: e.target.value }))}
                         />
+                      )}
+                      {editingIdx === idx ? (
+                        <Input
+                          placeholder="Lyrics URL (optional)"
+                          value={editBuffer.lyrics}
+                          onChange={e => setEditBuffer(buf => ({ ...buf, lyrics: e.target.value }))}
+                          disabled={editingIdx !== idx}
+                        />
+                      ) : (
+                        song.lyrics && song.lyrics.startsWith('http') ? (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={song.lyrics} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                              <FileText className="w-4 h-4" />
+                              Lyrics
+                            </a>
+                          </Button>
+                        ) : (
+                          <div className="text-sm text-gray-500 h-9 flex items-center px-3">{song.lyrics || 'No Lyrics Link'}</div>
+                        )
                       )}
                       {editingIdx === idx ? (
                         <Input
