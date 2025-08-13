@@ -113,7 +113,7 @@ const Index = () => {
   
   // UI state
   const [activeTab, setActiveTab] = useState<'schedule' | 'swaps' | 'uniqueSongs'>('schedule');
-  const [isManualMode, setIsManualMode] = useState(false);
+  const [isManualMode, setIsManualMode] = useState(true);
   const [selectedSwapFrom, setSelectedSwapFrom] = useState<{teamId: number, date: string} | null>(null);
   const [showTeamSelector, setShowTeamSelector] = useState<{date: string, teamId: number} | null>(null);
   
@@ -594,14 +594,14 @@ const Index = () => {
               <Calendar className="w-4 h-4" />
               Schedule
             </Button>
-            <Button
+            {/* <Button
               variant={activeTab === 'swaps' ? 'default' : 'ghost'}
               onClick={() => setActiveTab('swaps')}
               className="flex items-center gap-2"
             >
               <ArrowRightLeft className="w-4 h-4" />
               Swap Requests
-            </Button>
+            </Button> */}
             <Button
               variant={activeTab === 'uniqueSongs' ? 'default' : 'ghost'}
               onClick={() => setActiveTab('uniqueSongs')}
@@ -614,7 +614,7 @@ const Index = () => {
         </div>
 
         {/* Manual Mode Toggle - only show on schedule tab */}
-        {activeTab === 'schedule' && (
+        {/* {activeTab === 'schedule' && (
           <div className="flex justify-center mb-6">
             <Card className="w-full max-w-md">
               <CardContent className="pt-6">
@@ -644,7 +644,7 @@ const Index = () => {
               </CardContent>
             </Card>
           </div>
-        )}
+        )} */}
 
         {/* Team Selector Dialog */}
         <Dialog open={!!showTeamSelector} onOpenChange={() => setShowTeamSelector(null)}>
@@ -966,11 +966,11 @@ const Index = () => {
                           (Click a different Sunday to swap with)
                         </span>
                       )}
-                      {isManualMode && (
+                      {/* {isManualMode && (
                         <span className="text-sm font-normal text-green-600 ml-2">
                           (Click any Sunday to manually assign team)
                         </span>
-                      )}
+                      )} */}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -1005,7 +1005,7 @@ const Index = () => {
                                   Week {index + 1} • {isCurrentWeek ? 'Current Rotation' : 'Upcoming'}
                                   {isSelected && <span className="text-blue-600 font-medium"> • Selected for Swap</span>}
                                   {canSwap && <span className="text-green-600 font-medium"> • Click to Swap</span>}
-                                  {isManualMode && !isManualOverride && <span className="text-green-600 font-medium"> • Click to Assign</span>}
+                                  {/* {isManualMode && !isManualOverride && <span className="text-green-600 font-medium"> • Click to Assign</span>} */}
                                 </p>
                               </div>
                               
