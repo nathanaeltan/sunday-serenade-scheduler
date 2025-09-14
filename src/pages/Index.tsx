@@ -9,7 +9,9 @@ import {
   CheckCircle, 
   XCircle, 
   Clock, 
-  AlertTriangle 
+  AlertTriangle,
+  Info,
+  X as CloseIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +39,7 @@ import {
 import UniqueSongsManager from "@/components/UniqueSongsManager";
 import Fuse from 'fuse.js';
 import CalendarScheduleView from '@/components/CalendarScheduleView';
+import SimpleScheduleListView from '@/components/SimpleScheduleListView';
 
 interface WeekData {
   date: string;
@@ -139,7 +142,10 @@ const Index = () => {
   const [showSongsModal, setShowSongsModal] = useState(false);
   const [selectedSongs, setSelectedSongs] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
-  const [scheduleView, setScheduleView] = useState<'list' | 'calendar'>('list');
+  const [scheduleView, setScheduleView] = useState<'list' | 'calendar' | 'simple'>('simple');
+  const [showInfoBanner, setShowInfoBanner] = useState(() => {
+    return localStorage.getItem('worship-scheduler-banner-dismissed') !== 'true';
+  });
 
   const songLabels = {
     opening_song: 'Opening Song',
@@ -596,6 +602,39 @@ const Index = () => {
           )}
         </div>
 
+        {/* Info Banner */}
+        {showInfoBanner && (
+          <div className="mb-6">
+            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3 flex-1">
+                    <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-blue-900 mb-2">✨ New Features Added!</h3>
+                      <div className="text-sm text-blue-800 space-y-1">
+                        <p>• <strong>View List:</strong> Clean table view similar to Excel for quick overview</p>
+                        <p>• <strong>Edit List:</strong> Edit view to assign teams</p>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowInfoBanner(false);
+                      localStorage.setItem('worship-scheduler-banner-dismissed', 'true');
+                    }}
+                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 flex-shrink-0"
+                  >
+                    <CloseIcon className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Navigation Tabs */}
         <div className="flex justify-center mb-8">
           <div className="flex bg-white rounded-lg p-1 shadow-sm">
@@ -847,22 +886,36 @@ const Index = () => {
         {/* Conditional rendering for tabs */}
         {activeTab === 'schedule' && (
           <>
-            <div className="flex justify-end mb-4">
+            <div className="flex flex-col sm:flex-row justify-end mb-4 gap-2">
+              <Button
+                variant={scheduleView === 'simple' ? 'default' : 'outline'}
+                onClick={() => setScheduleView('simple')}
+                className="text-sm sm:text-base"
+              >
+                View List
+              </Button>
               <Button
                 variant={scheduleView === 'list' ? 'default' : 'outline'}
                 onClick={() => setScheduleView('list')}
-                className="mr-2"
+                className="text-sm sm:text-base"
               >
-                List View
+                Edit List
               </Button>
-              <Button
+              {/* <Button
                 variant={scheduleView === 'calendar' ? 'default' : 'outline'}
                 onClick={() => setScheduleView('calendar')}
+                className="text-sm sm:text-base"
               >
                 Calendar View
-              </Button>
+              </Button> */}
             </div>
-            {scheduleView === 'list' ? (
+            {scheduleView === 'simple' ? (
+              <SimpleScheduleListView
+                sundays={sundays}
+                getTeamById={getTeamById}
+                onShowSongs={handleShowSongs}
+              />
+            ) : scheduleView === 'list' ? (
               <>
                 {/* Band Leaders & Members Section (collapsible) */}
                 <Accordion type="multiple" defaultValue={[]} className="w-full mb-8">
