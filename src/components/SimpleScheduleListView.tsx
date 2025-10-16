@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from 'lucide-react';
 
 interface SimpleScheduleListViewProps {
-  sundays: { date: string; teamId: number; isChristmas?: boolean; isEaster?: boolean }[];
+  sundays: { date: string; teamId: number; isChristmas?: boolean; isEaster?: boolean; isGoodFriday?: boolean }[];
   getTeamById: (id: number) => { leader: string; members: string[] } | undefined;
   onShowSongs: (date: string) => void;
 }
@@ -58,7 +58,8 @@ const SimpleScheduleListView: React.FC<SimpleScheduleListViewProps> = ({
                 const isCurrentWeek = index < 2;
                 const isChristmas = sunday.isChristmas;
                 const isEaster = sunday.isEaster;
-                const isSpecialDate = isChristmas || isEaster;
+                const isGoodFriday = sunday.isGoodFriday;
+                const isSpecialDate = isChristmas || isEaster || isGoodFriday;
                 
                 return (
                   <tr 
@@ -79,6 +80,11 @@ const SimpleScheduleListView: React.FC<SimpleScheduleListViewProps> = ({
                       {isEaster && (
                         <div className="text-xs text-red-600 font-medium mt-1">
                           Easter
+                        </div>
+                      )}
+                      {isGoodFriday && (
+                        <div className="text-xs text-red-600 font-medium mt-1">
+                          Good Friday
                         </div>
                       )}
                       {isCurrentWeek && !isSpecialDate && (
@@ -126,7 +132,8 @@ const SimpleScheduleListView: React.FC<SimpleScheduleListViewProps> = ({
             const isCurrentWeek = index < 2;
             const isChristmas = sunday.isChristmas;
             const isEaster = sunday.isEaster;
-            const isSpecialDate = isChristmas || isEaster;
+            const isGoodFriday = sunday.isGoodFriday;
+            const isSpecialDate = isChristmas || isEaster || isGoodFriday;
             
             return (
               <div 
@@ -148,6 +155,11 @@ const SimpleScheduleListView: React.FC<SimpleScheduleListViewProps> = ({
                     {isEaster && (
                       <div className="text-xs text-red-600 font-medium mt-1">
                         Easter
+                      </div>
+                    )}
+                    {isGoodFriday && (
+                      <div className="text-xs text-red-600 font-medium mt-1">
+                        Good Friday
                       </div>
                     )}
                     {isCurrentWeek && !isSpecialDate && (
@@ -202,7 +214,7 @@ const SimpleScheduleListView: React.FC<SimpleScheduleListViewProps> = ({
             </div>
             <div>
               <div className="text-lg sm:text-2xl font-bold text-green-900">
-                {sundays.filter(s => s.isChristmas || s.isEaster).length}
+                {sundays.filter(s => s.isChristmas || s.isEaster || s.isGoodFriday).length}
               </div>
               <div className="text-xs sm:text-sm text-green-700">Special Dates</div>
             </div>

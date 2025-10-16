@@ -5,7 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface CalendarScheduleViewProps {
-  sundays: { date: string; teamId: number; isChristmas?: boolean; isEaster?: boolean }[];
+  sundays: { date: string; teamId: number; isChristmas?: boolean; isEaster?: boolean; isGoodFriday?: boolean }[];
   getTeamById: (id: number) => { leader: string; members: string[] } | undefined;
   onShowSongs: (date: string) => void;
 }
@@ -26,6 +26,10 @@ const CalendarScheduleView: React.FC<CalendarScheduleViewProps> = ({ sundays, ge
       title = `🐣 Easter: ${title}`;
       backgroundColor = '#fbbf24'; // yellow for Easter
       borderColor = '#d97706';
+    } else if (sunday.isGoodFriday) {
+      title = `✝️ Good Friday: ${title}`;
+      backgroundColor = '#7c3aed'; // purple for Good Friday
+      borderColor = '#5b21b6';
     }
     
     return {
@@ -34,7 +38,7 @@ const CalendarScheduleView: React.FC<CalendarScheduleViewProps> = ({ sundays, ge
       backgroundColor,
       borderColor,
       textColor: '#fff',
-      extendedProps: { isChristmas: sunday.isChristmas, isEaster: sunday.isEaster },
+      extendedProps: { isChristmas: sunday.isChristmas, isEaster: sunday.isEaster, isGoodFriday: sunday.isGoodFriday },
     };
   });
 

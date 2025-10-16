@@ -46,6 +46,7 @@ interface WeekData {
   teamId: number;
   isChristmas?: boolean;
   isEaster?: boolean;
+  isGoodFriday?: boolean;
 }
 
 // Utility: Advanced Title Case
@@ -309,7 +310,8 @@ const Index = () => {
       // 2025 special dates
       { year: 2025, month: 11, day: 25, type: 'christmas' }, // Christmas 2025
       // 2026 special dates
-      { year: 2026, month: 2, day: 31, type: 'easter' }, // Easter 2026 (March 31)
+      { year: 2026, month: 3, day: 5, type: 'easter' }, // Easter 2026 (April 5)
+      { year: 2026, month: 3, day: 3, type: 'goodfriday' }, // Good Friday 2026 (April 3)
       { year: 2026, month: 11, day: 25, type: 'christmas' }, // Christmas 2026
     ];
 
@@ -333,6 +335,8 @@ const Index = () => {
           specialDateEntry.isChristmas = true;
         } else if (type === 'easter') {
           specialDateEntry.isEaster = true;
+        } else if (type === 'goodfriday') {
+          specialDateEntry.isGoodFriday = true;
         }
         
         sundays.push(specialDateEntry);
@@ -345,6 +349,8 @@ const Index = () => {
               s.isChristmas = true;
             } else if (type === 'easter') {
               s.isEaster = true;
+            } else if (type === 'goodfriday') {
+              s.isGoodFriday = true;
             }
             // Also update teamId if there is a manual override for the special date
             if (manualOverrides[specialDateString]) {
