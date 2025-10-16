@@ -44,6 +44,8 @@ import SimpleScheduleListView from '@/components/SimpleScheduleListView';
 interface WeekData {
   date: string;
   teamId: number;
+  isChristmas?: boolean;
+  isEaster?: boolean;
 }
 
 // Utility: Advanced Title Case
@@ -101,10 +103,10 @@ function toLocalDateString(date: Date) {
 const Index = () => {
   // Default teams array
   const defaultTeams: Team[] = [
-    { id: 1, leader: "John Smith", members: ["Sarah Johnson", "Mike Wilson"] },
-    { id: 2, leader: "Emily Davis", members: ["Tom Brown", "Lisa Garcia"] },
-    { id: 3, leader: "David Miller", members: ["Anna Taylor", "Chris Lee"] },
-    { id: 4, leader: "Maria Rodriguez", members: ["James White", "Rachel Green"] },
+    { id: 1, leader: "Annamae", members: ["Xinyu", "Ryan"] },
+    { id: 2, leader: "Callum", members: ["Vivian", "Chris", "Hazel"] },
+    { id: 3, leader: "Nat", members: ["Mel", "Soph", "Samuel"] },
+    { id: 4, leader: "Tabitha", members: ["Victoria", "Kenji"] },
   ];
 
   // State management
@@ -115,7 +117,7 @@ const Index = () => {
   const [dataLoaded, setDataLoaded] = useState(false);
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'schedule' | 'swaps' | 'uniqueSongs'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'swaps' | 'uniqueSongs' | 'wrapped'>('schedule');
   const [isManualMode, setIsManualMode] = useState(true);
   const [selectedSwapFrom, setSelectedSwapFrom] = useState<{teamId: number, date: string} | null>(null);
   const [showTeamSelector, setShowTeamSelector] = useState<{date: string, teamId: number} | null>(null);
@@ -162,6 +164,7 @@ const Index = () => {
     const loadDataFromFirebase = async () => {
       try {
         const data = await getAllData();
+        console.log(data, "DATA")
         setTeams(data.teams && data.teams.length > 0 ? data.teams : defaultTeams);
         setSwapRequests(data.swapRequests);
         setManualOverrides(data.manualOverrides);
@@ -244,11 +247,11 @@ const Index = () => {
 
   // ===== SCHEDULE GENERATION =====
   
-  // Generate all Sundays until the end of the year, and include Christmas as a special date
-  const generateSundays = (): (WeekData & { isChristmas?: boolean })[] => {
-    const sundays: (WeekData & { isChristmas?: boolean })[] = [];
+  // Generate all Sundays until the end of 2026, and include special dates like Easter and Christmas
+  const generateSundays = (): WeekData[] => {
+    const sundays: WeekData[] = [];
     const today = new Date();
-    const year = today.getFullYear();
+    const currentYear = today.getFullYear();
     const nextSunday = new Date(today);
 
     // Find next Sunday
@@ -265,7 +268,8 @@ const Index = () => {
       swap => swap && typeof swap === 'object' && 'fromDate' in swap && 'toDate' in swap && 'status' in swap
     );
 
-    while (current.getFullYear() === year) {
+    // Generate Sundays for current year and 2026
+    while (current.getFullYear() <= 2026) {
       const dateString = toLocalDateString(current);
       // Check for manual override first
       if (manualOverrides[dateString]) {
@@ -300,32 +304,56 @@ const Index = () => {
       i++;
     }
 
-    // Add Christmas (Dec 25) if not already a Sunday
-    const christmas = new Date(year, 11, 25); // December is month 11
-    const christmasString = toLocalDateString(christmas);
-    const alreadyIncluded = sundays.some(s => s.date === christmasString);
-    if (!alreadyIncluded) {
-      // Check for manual override for Christmas
-      const teamId = manualOverrides[christmasString]
-        ? manualOverrides[christmasString]
-        : teams[Math.floor(i / 2) % numTeams]?.id || 1;
-      sundays.push({
-        date: christmasString,
-        teamId,
-        isChristmas: true,
-      });
-    } else {
-      // Mark the existing Sunday as Christmas if it falls on Dec 25
-      sundays.forEach(s => {
-        if (s.date === christmasString) {
-          s.isChristmas = true;
-          // Also update teamId if there is a manual override for Christmas
-          if (manualOverrides[christmasString]) {
-            s.teamId = manualOverrides[christmasString];
-          }
+    // Add special dates for both years
+    const specialDates = [
+      // 2025 special dates
+      { year: 2025, month: 11, day: 25, type: 'christmas' }, // Christmas 2025
+      // 2026 special dates
+      { year: 2026, month: 2, day: 31, type: 'easter' }, // Easter 2026 (March 31)
+      { year: 2026, month: 11, day: 25, type: 'christmas' }, // Christmas 2026
+    ];
+
+    specialDates.forEach(({ year, month, day, type }) => {
+      const specialDate = new Date(year, month, day);
+      const specialDateString = toLocalDateString(specialDate);
+      const alreadyIncluded = sundays.some(s => s.date === specialDateString);
+      
+      if (!alreadyIncluded) {
+        // Check for manual override for special date
+        const teamId = manualOverrides[specialDateString]
+          ? manualOverrides[specialDateString]
+          : teams[Math.floor(i / 2) % numTeams]?.id || 1;
+        
+        const specialDateEntry: WeekData = {
+          date: specialDateString,
+          teamId,
+        };
+        
+        if (type === 'christmas') {
+          specialDateEntry.isChristmas = true;
+        } else if (type === 'easter') {
+          specialDateEntry.isEaster = true;
         }
-      });
-    }
+        
+        sundays.push(specialDateEntry);
+        i++;
+      } else {
+        // Mark the existing Sunday as special date
+        sundays.forEach(s => {
+          if (s.date === specialDateString) {
+            if (type === 'christmas') {
+              s.isChristmas = true;
+            } else if (type === 'easter') {
+              s.isEaster = true;
+            }
+            // Also update teamId if there is a manual override for the special date
+            if (manualOverrides[specialDateString]) {
+              s.teamId = manualOverrides[specialDateString];
+            }
+          }
+        });
+      }
+    });
 
     // Sort by date ascending
     sundays.sort((a, b) => a.date.localeCompare(b.date));
@@ -662,6 +690,7 @@ const Index = () => {
               🎵
               Songs
             </Button>
+
           </div>
         </div>
 
@@ -1343,6 +1372,8 @@ const Index = () => {
         {activeTab === 'uniqueSongs' && (
           <UniqueSongsManager />
         )}
+
+
 
         {/* Rotation Info */}
         <Card className="mt-6 bg-blue-50 border-blue-200">

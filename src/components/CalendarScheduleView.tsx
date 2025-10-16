@@ -5,7 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface CalendarScheduleViewProps {
-  sundays: { date: string; teamId: number; isChristmas?: boolean }[];
+  sundays: { date: string; teamId: number; isChristmas?: boolean; isEaster?: boolean }[];
   getTeamById: (id: number) => { leader: string; members: string[] } | undefined;
   onShowSongs: (date: string) => void;
 }
@@ -14,22 +14,34 @@ const CalendarScheduleView: React.FC<CalendarScheduleViewProps> = ({ sundays, ge
   // Prepare events for FullCalendar
   const events = sundays.map(sunday => {
     const team = getTeamById(sunday.teamId);
+    let title = team?.leader || 'Unassigned';
+    let backgroundColor = '#2563eb'; // default blue
+    let borderColor = '#1d4ed8';
+    
+    if (sunday.isChristmas) {
+      title = `🎄 Christmas: ${title}`;
+      backgroundColor = '#f87171'; // red for Christmas
+      borderColor = '#b91c1c';
+    } else if (sunday.isEaster) {
+      title = `🐣 Easter: ${title}`;
+      backgroundColor = '#fbbf24'; // yellow for Easter
+      borderColor = '#d97706';
+    }
+    
     return {
-      title: sunday.isChristmas
-        ? `🎄 Christmas: ${team?.leader || 'Unassigned'}`
-        : team?.leader || 'Unassigned',
+      title,
       date: sunday.date,
-      backgroundColor: sunday.isChristmas ? '#f87171' : '#2563eb', // red for Christmas, blue for others
-      borderColor: sunday.isChristmas ? '#b91c1c' : '#1d4ed8',
+      backgroundColor,
+      borderColor,
       textColor: '#fff',
-      extendedProps: { isChristmas: sunday.isChristmas },
+      extendedProps: { isChristmas: sunday.isChristmas, isEaster: sunday.isEaster },
     };
   });
 
   return (
     <Card className="mb-8">
       <CardHeader>
-        <CardTitle>Calendar View (Sundays & Christmas)</CardTitle>
+        <CardTitle>Calendar View (Sundays & Special Dates)</CardTitle>
       </CardHeader>
       <CardContent>
         <FullCalendar
