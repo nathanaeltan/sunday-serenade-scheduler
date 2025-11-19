@@ -11,7 +11,8 @@ import {
   Clock, 
   AlertTriangle,
   Info,
-  X as CloseIcon
+  X as CloseIcon,
+  Music
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { 
   saveTeams, 
   saveSwapRequests, 
@@ -30,11 +34,13 @@ import {
   subscribeToTeams, 
   subscribeToSwapRequests, 
   subscribeToManualOverrides,
+  subscribeToSongSchedule,
   getAllData,
   type Team,
   type SwapRequest,
   getSongSchedule,
-  getUniqueSongs
+  getUniqueSongs,
+  saveSongSchedule
 } from "@/lib/firebaseService";
 import UniqueSongsManager from "@/components/UniqueSongsManager";
 import Fuse from 'fuse.js';
@@ -118,7 +124,7 @@ const Index = () => {
   const [dataLoaded, setDataLoaded] = useState(false);
   
   // UI state
-  const [activeTab, setActiveTab] = useState<'schedule' | 'swaps' | 'uniqueSongs' | 'wrapped'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'swaps' | 'uniqueSongs' | 'assignSongs' | 'wrapped'>('schedule');
   const [isManualMode, setIsManualMode] = useState(true);
   const [selectedSwapFrom, setSelectedSwapFrom] = useState<{teamId: number, date: string} | null>(null);
   const [showTeamSelector, setShowTeamSelector] = useState<{date: string, teamId: number} | null>(null);
@@ -146,6 +152,7 @@ const Index = () => {
   const [selectedSongs, setSelectedSongs] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [scheduleView, setScheduleView] = useState<'list' | 'calendar' | 'simple'>('simple');
+  const [openPopovers, setOpenPopovers] = useState<{[key: string]: boolean}>({});
   const [showInfoBanner, setShowInfoBanner] = useState(() => {
     return localStorage.getItem('worship-scheduler-banner-dismissed') !== 'true';
   });
@@ -211,11 +218,16 @@ const Index = () => {
       setManualOverrides(newManualOverrides);
     });
 
+    const unsubscribeSongSchedule = subscribeToSongSchedule((newSongSchedule) => {
+      setSongSchedule(newSongSchedule);
+    });
+
     // Cleanup listeners on unmount
     return () => {
       unsubscribeTeams();
       unsubscribeSwapRequests();
       unsubscribeManualOverrides();
+      unsubscribeSongSchedule();
     };
   }, []);
 
@@ -695,6 +707,14 @@ const Index = () => {
             >
               🎵
               Songs
+            </Button>
+            <Button
+              variant={activeTab === 'assignSongs' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('assignSongs')}
+              className="flex items-center gap-2"
+            >
+              <Music className="w-4 h-4" />
+              Assign Songs
             </Button>
 
           </div>
@@ -1379,7 +1399,177 @@ const Index = () => {
           <UniqueSongsManager />
         )}
 
-
+        {activeTab === 'assignSongs' && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Music className="w-5 h-5" />
+                  Assign Songs to Dates
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-6">
+                  Select songs for each date. Changes will automatically reflect in the Schedule tab.
+                </p>
+                
+                <div className="space-y-6">
+                  {sundays.slice(0, 20).map((sunday) => {
+                    const scheduledTeam = getTeamById(sunday.teamId);
+                    const currentSongs = songSchedule[sunday.date] || {};
+                    const allSongsArray = Object.values(uniqueSongs) as { title: string }[];
+                    const sortedSongs = [...allSongsArray].sort((a, b) => a.title.localeCompare(b.title));
+                    
+                    // Helper to get slug from title
+                    const getSlugFromTitle = (title: string) => {
+                      return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                    };
+                    
+                    // Helper to get current song title from slug
+                    const getSongTitleFromSlug = (slug: string) => {
+                      if (!slug) return '';
+                      const song = uniqueSongs[slug];
+                      return song ? song.title : slug.replace(/-/g, ' ');
+                    };
+                    
+                    const handleSongChange = async (date: string, slot: string, songTitle: string) => {
+                      const newSongSchedule = { ...songSchedule };
+                      if (!newSongSchedule[date]) {
+                        newSongSchedule[date] = {};
+                      }
+                      
+                      if (songTitle) {
+                        const slug = getSlugFromTitle(songTitle);
+                        newSongSchedule[date][slot] = slug;
+                      } else {
+                        delete newSongSchedule[date][slot];
+                        if (Object.keys(newSongSchedule[date]).length === 0) {
+                          delete newSongSchedule[date];
+                        }
+                      }
+                      
+                      setSongSchedule(newSongSchedule);
+                      await saveSongSchedule(newSongSchedule);
+                    };
+                    
+                    return (
+                      <Card key={sunday.date} className="border-gray-200">
+                        <CardContent className="pt-6">
+                          <div className="mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                              {formatDate(sunday.date)}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary">
+                                {scheduledTeam?.leader || 'Unassigned'}
+                              </Badge>
+                              {sunday.isChristmas && (
+                                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                  🎄 Christmas
+                                </Badge>
+                              )}
+                              {sunday.isEaster && (
+                                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                                  🐣 Easter
+                                </Badge>
+                              )}
+                              {sunday.isGoodFriday && (
+                                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                  ✝️ Good Friday
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {Object.entries(songLabels).map(([key, label]) => {
+                              const selectedSongTitle = currentSongs[key] ? getSongTitleFromSlug(currentSongs[key]) : '';
+                              const popoverKey = `${sunday.date}-${key}`;
+                              const isOpen = openPopovers[popoverKey] || false;
+                              
+                              return (
+                                <div key={key} className="space-y-2">
+                                  <Label className="text-sm font-medium text-gray-700">
+                                    {label}
+                                  </Label>
+                                  <Popover 
+                                    open={isOpen} 
+                                    onOpenChange={(open) => {
+                                      setOpenPopovers(prev => ({ ...prev, [popoverKey]: open }));
+                                    }}
+                                  >
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={isOpen}
+                                        className="w-full justify-between"
+                                      >
+                                        {selectedSongTitle || `Select ${label.toLowerCase()}`}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                                      <Command>
+                                        <CommandInput placeholder={`Search ${label.toLowerCase()}...`} />
+                                        <CommandList>
+                                          <CommandEmpty>No song found.</CommandEmpty>
+                                          <CommandGroup>
+                                            <CommandItem
+                                              value="none"
+                                              onSelect={() => {
+                                                handleSongChange(sunday.date, key, '');
+                                                setOpenPopovers(prev => ({ ...prev, [popoverKey]: false }));
+                                              }}
+                                            >
+                                              <Check
+                                                className={`mr-2 h-4 w-4 ${
+                                                  !selectedSongTitle ? 'opacity-100' : 'opacity-0'
+                                                }`}
+                                              />
+                                              None
+                                            </CommandItem>
+                                            {sortedSongs.map((song) => (
+                                              <CommandItem
+                                                key={song.title}
+                                                value={song.title}
+                                                onSelect={() => {
+                                                  handleSongChange(sunday.date, key, song.title);
+                                                  setOpenPopovers(prev => ({ ...prev, [popoverKey]: false }));
+                                                }}
+                                              >
+                                                <Check
+                                                  className={`mr-2 h-4 w-4 ${
+                                                    selectedSongTitle === song.title ? 'opacity-100' : 'opacity-0'
+                                                  }`}
+                                                />
+                                                {song.title}
+                                              </CommandItem>
+                                            ))}
+                                          </CommandGroup>
+                                        </CommandList>
+                                      </Command>
+                                    </PopoverContent>
+                                  </Popover>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+                
+                {sundays.length > 20 && (
+                  <div className="mt-6 text-center text-sm text-gray-500">
+                    Showing first 20 dates. More dates available in the schedule view.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Rotation Info */}
         <Card className="mt-6 bg-blue-50 border-blue-200">
