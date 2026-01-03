@@ -308,7 +308,7 @@ const Index = () => {
     // Add special dates for both years
     const specialDates = [
       // 2025 special dates
-      { year: 2025, month: 11, day: 25, type: 'christmas' }, // Christmas 2025
+      // { year: 2025, month: 11, day: 25, type: 'christmas' }, // Christmas 2025
       // 2026 special dates
       { year: 2026, month: 3, day: 5, type: 'easter' }, // Easter 2026 (April 5)
       { year: 2026, month: 3, day: 3, type: 'goodfriday' }, // Good Friday 2026 (April 3)
