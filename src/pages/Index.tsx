@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
-import { 
-  Calendar, 
-  Users, 
-  Edit2, 
-  Save, 
-  X, 
-  ArrowRightLeft, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import {
+  Calendar,
+  Users,
+  Edit2,
+  Save,
+  X,
+  ArrowRightLeft,
+  CheckCircle,
+  XCircle,
+  Clock,
   AlertTriangle,
   Info,
   X as CloseIcon
@@ -22,13 +22,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  saveTeams, 
-  saveSwapRequests, 
-  saveManualOverrides, 
+import {
+  saveTeams,
+  saveSwapRequests,
+  saveManualOverrides,
   updateSwapRequestStatus,
-  subscribeToTeams, 
-  subscribeToSwapRequests, 
+  subscribeToTeams,
+  subscribeToSwapRequests,
   subscribeToManualOverrides,
   getAllData,
   type Team,
@@ -116,13 +116,13 @@ const Index = () => {
   const [manualOverrides, setManualOverrides] = useState<{[date: string]: number}>({});
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
-  
+
   // UI state
   const [activeTab, setActiveTab] = useState<'schedule' | 'swaps' | 'uniqueSongs' | 'wrapped'>('schedule');
   const [isManualMode, setIsManualMode] = useState(true);
   const [selectedSwapFrom, setSelectedSwapFrom] = useState<{teamId: number, date: string} | null>(null);
   const [showTeamSelector, setShowTeamSelector] = useState<{date: string, teamId: number} | null>(null);
-  
+
   // Team editing state
   const [editingTeam, setEditingTeam] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ leader: "", members: "" });
@@ -159,7 +159,7 @@ const Index = () => {
   };
 
   // ===== DATA LOADING & FIREBASE EFFECTS =====
-  
+
   // Load data from Firebase on component mount
   useEffect(() => {
     const loadDataFromFirebase = async () => {
@@ -177,7 +177,7 @@ const Index = () => {
         const savedTeams = localStorage.getItem('worship-teams');
         const savedSwaps = localStorage.getItem('swap-requests');
         const savedManualOverrides = localStorage.getItem('manual-overrides');
-        
+
         if (savedTeams) {
           const parsedTeams = JSON.parse(savedTeams);
           setTeams(parsedTeams && parsedTeams.length > 0 ? parsedTeams : defaultTeams);
@@ -247,7 +247,7 @@ const Index = () => {
   }, []);
 
   // ===== SCHEDULE GENERATION =====
-  
+
   // Generate all Sundays until the end of 2026, and include special dates like Easter and Christmas
   const generateSundays = (): WeekData[] => {
     const sundays: WeekData[] = [];
@@ -310,8 +310,8 @@ const Index = () => {
       // 2025 special dates
       // { year: 2025, month: 11, day: 25, type: 'christmas' }, // Christmas 2025
       // 2026 special dates
-      { year: 2026, month: 3, day: 5, type: 'easter' }, // Easter 2026 (April 5)
-      { year: 2026, month: 3, day: 3, type: 'goodfriday' }, // Good Friday 2026 (April 3)
+      // { year: 2026, month: 3, day: 5, type: 'easter' }, // Easter 2026 (April 5)
+      // { year: 2026, month: 3, day: 3, type: 'goodfriday' }, // Good Friday 2026 (April 3)
       { year: 2026, month: 11, day: 25, type: 'christmas' }, // Christmas 2026
     ];
 
@@ -319,18 +319,18 @@ const Index = () => {
       const specialDate = new Date(year, month, day);
       const specialDateString = toLocalDateString(specialDate);
       const alreadyIncluded = sundays.some(s => s.date === specialDateString);
-      
+
       if (!alreadyIncluded) {
         // Check for manual override for special date
         const teamId = manualOverrides[specialDateString]
           ? manualOverrides[specialDateString]
           : teams[Math.floor(i / 2) % numTeams]?.id || 1;
-        
+
         const specialDateEntry: WeekData = {
           date: specialDateString,
           teamId,
         };
-        
+
         if (type === 'christmas') {
           specialDateEntry.isChristmas = true;
         } else if (type === 'easter') {
@@ -338,7 +338,7 @@ const Index = () => {
         } else if (type === 'goodfriday') {
           specialDateEntry.isGoodFriday = true;
         }
-        
+
         sundays.push(specialDateEntry);
         i++;
       } else {
@@ -369,14 +369,14 @@ const Index = () => {
   const sundays = generateSundays();
 
   // ===== UTILITY FUNCTIONS =====
-  
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   };
 
@@ -405,19 +405,19 @@ const Index = () => {
   };
 
   // ===== TEAM MANAGEMENT FUNCTIONS =====
-  
+
   const startEditing = (team: Team) => {
     setEditingTeam(team.id);
     setEditForm({ leader: team.leader, members: team.members.join(', ') });
   };
 
   const saveChanges = async (teamId: number) => {
-    const updatedTeams = teams.map(team => 
-      team.id === teamId 
-        ? { 
-            ...team, 
-            leader: editForm.leader, 
-            members: editForm.members.split(',').map(m => m.trim()).filter(m => m) 
+    const updatedTeams = teams.map(team =>
+      team.id === teamId
+        ? {
+            ...team,
+            leader: editForm.leader,
+            members: editForm.members.split(',').map(m => m.trim()).filter(m => m)
           }
         : team
     );
@@ -431,7 +431,7 @@ const Index = () => {
   };
 
   // ===== SWAP REQUEST FUNCTIONS =====
-  
+
   const handleSwapSelect = async (teamId: number, date: string) => {
     if (selectedSwapFrom && selectedSwapFrom.teamId === teamId && selectedSwapFrom.date === date) {
       // Deselect if clicking the same date
@@ -452,7 +452,7 @@ const Index = () => {
 
   const confirmSwapRequest = () => {
     if (!showSwapConfirmation) return;
-    
+
     const newSwap: SwapRequest = {
       id: Date.now(),
       fromTeamId: showSwapConfirmation.fromTeamId,
@@ -461,7 +461,7 @@ const Index = () => {
       toDate: showSwapConfirmation.toDate,
       status: 'pending'
     };
-    
+
     setSwapRequests([...swapRequests, newSwap]);
     setSelectedSwapFrom(null);
     setShowSwapConfirmation(null);
@@ -482,7 +482,7 @@ const Index = () => {
   };
 
   // ===== MANUAL OVERRIDE FUNCTIONS =====
-  
+
   const handleToggleManualMode = () => {
     setIsManualMode(!isManualMode);
     setSelectedSwapFrom(null);
@@ -500,14 +500,14 @@ const Index = () => {
   const handleManualTeamSelect = (newTeamId: number) => {
     if (showTeamSelector) {
       const currentTeamId = showTeamSelector.teamId;
-      
+
       // Show confirmation dialog
       setShowManualConfirmation({
         date: showTeamSelector.date,
         currentTeamId,
         newTeamId
       });
-      
+
       // Close the team selector dialog
       setShowTeamSelector(null);
     }
@@ -515,7 +515,7 @@ const Index = () => {
 
   const confirmManualAssignment = () => {
     if (!showManualConfirmation) return;
-    
+
     const newManualOverrides = {
       ...manualOverrides,
       [showManualConfirmation.date]: showManualConfirmation.newTeamId
@@ -558,10 +558,10 @@ const Index = () => {
                 )}
               </div>
               {song && song.spotify && (
-                <a 
-                  href={song.spotify} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                <a
+                  href={song.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-green-600 hover:text-green-700 flex items-center gap-1.5 text-sm font-medium"
                 >
                   <svg width="16" height="16" viewBox="0 0 168 168" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -575,10 +575,10 @@ const Index = () => {
             {song && (song.link1 || song.link2 || song.lyrics) && (
               <div className="flex gap-3 mt-1">
                 {song.link1 && (
-                  <a 
-                    href={song.link1} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
+                  <a
+                    href={song.link1}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -588,10 +588,10 @@ const Index = () => {
                   </a>
                 )}
                 {song.link2 && (
-                  <a 
-                    href={song.link2} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
+                  <a
+                    href={song.link2}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -601,10 +601,10 @@ const Index = () => {
                   </a>
                 )}
                 {song.lyrics && (
-                  <a 
-                    href={song.lyrics} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
+                  <a
+                    href={song.lyrics}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-purple-600 hover:text-purple-700 text-sm font-medium flex items-center gap-1"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -746,7 +746,7 @@ const Index = () => {
               <p className="text-gray-600">
                 Select which team should serve on this Sunday:
               </p>
-              
+
               <div className="space-y-2">
                 {teams.map((team) => (
                   <Button
@@ -764,18 +764,18 @@ const Index = () => {
                   </Button>
                 ))}
               </div>
-              
+
               <div className="flex gap-2 pt-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setShowTeamSelector(null)}
                   className="flex-1"
                 >
                   Cancel
                 </Button>
                 {showTeamSelector && manualOverrides[showTeamSelector.date] && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => clearManualOverride(showTeamSelector.date)}
                     className="flex-1 text-red-600 hover:text-red-700"
                   >
@@ -811,7 +811,7 @@ const Index = () => {
                   <strong>New Team:</strong> {showManualConfirmation ? getTeamById(showManualConfirmation.newTeamId)?.leader : ''}
                 </p>
               </div>
-              
+
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
@@ -820,13 +820,13 @@ const Index = () => {
               </Alert>
             </div>
             <DialogFooter>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowManualConfirmation(null)}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={confirmManualAssignment}
                 className="bg-orange-600 hover:bg-orange-700"
               >
@@ -870,7 +870,7 @@ const Index = () => {
                   </div>
                 </div>
               </div>
-              
+
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
@@ -879,13 +879,13 @@ const Index = () => {
               </Alert>
             </div>
             <DialogFooter>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowSwapConfirmation(null)}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={confirmSwapRequest}
                 className="bg-blue-600 hover:bg-blue-700"
               >
@@ -977,7 +977,7 @@ const Index = () => {
                                   ) : (
                                     <h3 className="font-semibold my-0 py-0 leading-none flex-grow">{team.leader}</h3>
                                   )}
-                                  
+
                                   {editingTeam === team.id ? (
                                     <div className="flex gap-1">
                                       <Button size="sm" onClick={() => saveChanges(team.id)}>
@@ -993,14 +993,14 @@ const Index = () => {
                                     </Button>
                                   )}
                                 </div>
-                                
+
                                 <div>
                                   <Label className="text-xs text-gray-600">Members</Label>
                                   {editingTeam === team.id ? (
                                     <Textarea
                                       value={editForm.members}
                                       onChange={(e) => setEditForm({ ...editForm, members: e.target.value })}
-                                      placeholder="Enter member names separated by commas"             
+                                      placeholder="Enter member names separated by commas"
                                       className="mt-1"
                                       rows={2}
                                     />
@@ -1041,9 +1041,9 @@ const Index = () => {
                         <p className="text-sm text-blue-700">
                           Click on another Sunday to complete the swap request.
                         </p>
-                        
-                        <Button 
-                          variant="outline" 
+
+                        <Button
+                          variant="outline"
                           onClick={() => {
                             setSelectedSwapFrom(null);
                           }}
@@ -1082,17 +1082,17 @@ const Index = () => {
                         const isSelected = isDateInSwapSelection(sunday.teamId, sunday.date);
                         const canSwap = canSwapWith(sunday.teamId, sunday.date);
                         const isManualOverride = manualOverrides[sunday.date];
-                        
+
                         return (
-                          <div 
+                          <div
                             key={sunday.date}
                             className={`p-4 border rounded-lg transition-all cursor-pointer ${
-                              isSelected 
-                                ? 'border-blue-500 bg-blue-100' 
+                              isSelected
+                                ? 'border-blue-500 bg-blue-100'
                                 : canSwap
                                 ? 'border-green-300 bg-green-50 hover:bg-green-100'
-                                : isCurrentWeek 
-                                ? 'border-green-300 bg-green-50' 
+                                : isCurrentWeek
+                                ? 'border-green-300 bg-green-50'
                                 : 'border-gray-200 bg-white hover:bg-gray-50'
                             }`}
                             onClick={() => handleDateClick(sunday.teamId, sunday.date)}
@@ -1109,9 +1109,9 @@ const Index = () => {
                                   {/* {isManualMode && !isManualOverride && <span className="text-green-600 font-medium"> • Click to Assign</span>} */}
                                 </p>
                               </div>
-                              
+
                               <div className="flex items-center gap-2">
-                                <Badge 
+                                <Badge
                                   variant={isCurrentWeek ? "default" : "secondary"}
                                   className="px-3 py-1"
                                 >
@@ -1177,7 +1177,7 @@ const Index = () => {
                   .filter(request => request.status === 'pending')
                   .map((request) => {
                     const fromTeam = getTeamById(request.fromTeamId);
-                    const toTeam = getTeamById(request.toTeamId); 
+                    const toTeam = getTeamById(request.toTeamId);
                     return (
                       <Card key={request.id} className={`transition-all duration-200 hover:shadow-lg ${getStatusColor(request.status)}`}>
                         <CardContent className="p-6">
@@ -1287,7 +1287,7 @@ const Index = () => {
                         .filter(request => request.status !== 'pending')
                         .map((request) => {
                           const fromTeam = getTeamById(request.fromTeamId);
-                          const toTeam = getTeamById(request.toTeamId); 
+                          const toTeam = getTeamById(request.toTeamId);
                           return (
                             <Card key={request.id} className={`transition-all duration-200 hover:shadow-lg ${getStatusColor(request.status)}`}>
                               <CardContent className="p-6">
@@ -1387,7 +1387,7 @@ const Index = () => {
             <div className="text-center">
               <h3 className="font-semibold text-blue-900 mb-2">Dynamic Rotation Pattern</h3>
               <p className="text-blue-700 text-sm">
-                Each team serves for 2 consecutive weeks, then rotates to the next team. 
+                Each team serves for 2 consecutive weeks, then rotates to the next team.
                 With {teams.length} teams, each team gets {Math.floor(100 / teams.length)}% of the Sundays.
                 Click on Sundays in the schedule to request swaps visually.
               </p>
